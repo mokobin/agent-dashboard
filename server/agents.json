@@ -1,0 +1,9 @@
+{
+  "agents": [
+    {"agent_id": "bolo_airdrop", "name": "Bolo_airdrop", "platform": "hermes", "role": "Airdrop Hunter",   "color": "#0d9488", "initials": "BA", "shirt": "#2a9d8f", "skin": "#8d5524", "hair": "#14100c", "desk": 0},
+    {"agent_id": "bolongonten",  "name": "Bolongonten",  "platform": "hermes", "role": "Content Creator",  "color": "#059669", "initials": "BK", "shirt": "#3f7d4e", "skin": "#c68642", "hair": "#241611", "desk": 1},
+    {"agent_id": "hunter-2",     "name": "Hunter-2", "alias": "Nanika", "platform": "hermes", "role": "Bug Hunter", "color": "#2563eb", "initials": "H2", "shirt": "#33546d", "skin": "#6b4423", "hair": "#0d0d0f", "desk": 2},
+    {"agent_id": "mas-wowo",     "name": "Mas Wowo",     "platform": "muse",   "role": "Agent Operasional", "color": "#b45309", "initials": "MW", "shirt": "#7d3b3b", "skin": "#a0662f", "hair": "#191007", "desk": 3},
+    {"agent_id": "mas-wiwi",     "name": "Mas Wiwi",     "platform": "muse",   "role": "Koordinator",       "color": "#e8590c", "initials": "WW", "shirt": "#c2571b", "skin": "#8d5524", "hair": "#120d08", "desk": 4}
+  ]
+}

@@ -1,79 +1,104 @@
-# Agent Dashboard — Pusat Kendali Agent
+# BOLO HQ — Agent Dashboard PWA (`boloku.web.id`)
 
-Satu PWA di `https://boloku.web.id` yang menampilkan status **live** lima agent
-user dalam satu kantor virtual isometrik:
-
-- Hermes: `bolo_airdrop`, `bolongonten`, `hunter-2`
-- Muse: `mas-wowo`, `mas-wiwi`
-
-Arsitektur: tiap agent melapor (heartbeat) ke Sync API di VPS; PWA membaca
-snapshot + update live (SSE) dari API yang sama.
+Pusat Kendali Agent: kantor virtual (porting dari prototype `docs/prototype.html`) yang
+menampilkan status **asli** lima agent: Bolo_airdrop, Bolongonten, Hunter-2 / Nanika (Hermes)
+dan Mas Wowo, Mas Wiwi (Muse). Tiap agent duduk di mejanya dengan chip nama + status;
+bubble menampilkan tugas agent terpilih. `working` = mengetik + kode berjalan di monitor,
+`idle` = diam + kopi mengepul, `offline` = kursi kosong + papan AWAY. Layar dinding
+menampilkan jam WIB; ada jendela kota malam, papan pipeline kerja, lounge, dan ruang meeting.
 
 ```
-[Agent Hermes di VPS] --POST heartbeat--> [Sync API di VPS] <--GET/SSE-- [PWA boloku.web.id]
-[Agent Muse]         --POST heartbeat--> [Sync API di VPS] <--GET/SSE-- [PWA boloku.web.id]
+[Agent Hermes di VPS] --POST heartbeat--> [Sync API :8787] <--GET/SSE-- [PWA boloku.web.id]
+[Agent Muse]          --POST heartbeat--> (nginx /api/ → 127.0.0.1:8787)
 ```
 
-## Struktur
+| Folder | Isi |
+|---|---|
+| `pwa/` | Front-end (HTML/CSS/JS murni, tanpa build), `manifest.json`, `sw.js`, ikon. ±130 KB total |
+| `server/` | Sync API Python **stdlib-only** + SQLite (WAL), `agents.json`, `gen-tokens.py`, tes |
+| `reporter/` | `report-status.sh`, `with-status.sh`, `keepalive.sh`, `bolo_report.py`, `MUSE-REPORTING.md` |
+| `deploy/` | nginx server block, unit systemd, `install.sh`, `write-agent-token.sh`, `TUNNEL.md` |
+| `tests/acceptance.sh` | Acceptance test 1–5 sesuai brief |
+| `docs/` | `PROMPT-CLAUDE-CODE.md` (brief) + `prototype.html` (referensi tampilan awal, tidak ikut di-deploy) |
 
-```
-pwa/        PWA: index.html (shell live), prototype.html (referensi tampilan
-            kantor virtual isometrik), manifest.json, sw.js, icon.svg
-server/     Sync API (Python stdlib, tanpa dependensi): sync_api.py
-reporter/   report-status.sh — helper tiap agent melapor
-docs/       PROMPT-CLAUDE-CODE.md — prompt eksekusi lengkap buat Claude Code
-```
+## Fitur
 
-## Quickstart (lokal)
+- **Live**: snapshot `GET /status` → langganan SSE `GET /events`. SSE putus → polling 5 dtk otomatis, reconnect sendiri.
+- **Offline**: service worker cache app shell + snapshot terakhir. Buka tanpa jaringan → tampil data terakhir + penanda waktu.
+- **Jujur soal data**: label koneksi `LIVE / POLLING / DATA TERAKHIR / SIMULASI`. Data simulasi hanya muncul bila API belum pernah tersambung, dengan banner merah + watermark SIMULASI dan prefix di tiap bubble. Pusat Perintah nonaktif saat simulasi.
+- **Offline detection di dua sisi**: server (watchdog → event + feed "tidak ada heartbeat >60 dtk") dan klien (hitung ulang tiap detik dengan koreksi selisih jam server).
+- **Panel Kendali** per platform (HERMES/MUSE): status, tugas, progress bar, timer sesi tugas, "dilihat x lalu". Ketuk agent/meja/bubble → detail lengkap.
+- **Pusat Perintah**: kirim ke satu agent atau semua → antrean + feed (pakai admin token, disimpan di perangkat). Agent bisa membaca & `ack` perintah (groundwork fase berikut).
+- Kartu detail agent: tugas saat ini, progres, timer sesi, jumlah tugas selesai hari ini, heartbeat terakhir; tombol **Jeda / Selesaikan Tugas / Beri Perintah** (dua yang pertama masuk antrean sebagai perintah ke agent itu) + 5 perintah cepat.
+- Header: Agent Aktif, Tugas Berjalan, Selesai Hari Ini (dihitung server dari transisi working → idle), jam WIB.
+- Installable (manifest + ikon maskable + tombol install), tema terang/gelap mengikuti sistem, font Manrope/JetBrains Mono di-cache SW untuk offline, `prefers-reduced-motion` dihormati.
+
+## Kontrak API (`/api/v1`)
+
+| Method | Path | Auth | Keterangan |
+|---|---|---|---|
+| GET | `/health` | – | `{ok, version, uptime, sse_clients}` |
+| GET | `/status` | – | `{server_time, offline_after, agents:[{agent_id, name, alias, platform, status, reported_status, task, detail, progress, task_started, last_seen, online, …}]}` |
+| GET | `/events` | – | SSE: `snapshot` (awal), `agent`, `feed`, `command`, `ping` (15 dtk) |
+| POST | `/heartbeat` | Bearer token agent | `{"agent_id","status":"working\|idle\|offline","task","detail","progress"?,"ts"}` |
+| GET | `/feed?limit=50` | – | Feed aktivitas |
+| GET | `/commands?agent_id=&state=` | – | Antrean perintah |
+| POST | `/commands` | Bearer admin | `{"target":"<agent_id>\|all","text"}` |
+| POST | `/commands/<id>/ack` | Bearer token agent | `{"agent_id","state":"received\|running\|done\|failed","note"}` |
+
+Aturan: tidak ada heartbeat > 60 dtk → `online:false`, `status:"offline"`, `last_seen` tetap. `last_seen` memakai waktu terima server (bukan `ts` kiriman agent), jadi jam agent yang meleset tidak memalsukan status. Token dibandingkan konstan-waktu; 20 auth gagal/menit per IP → 429. Body maks 16 KB.
+
+## Deploy ke VPS (Oracle, nginx sudah aktif)
 
 ```bash
-# 1. Jalankan Sync API (port 8001, data di server/data/status.json)
-python3 server/sync_api.py
-
-# 2. Lapor status satu agent (terminal lain)
-SYNC_API_URL=http://127.0.0.1:8001 AGENT_TOKEN=dev \
-  ./reporter/report-status.sh hunter-2 working "Audit QNAP battery run 4"
-
-# 3. Buka PWA — sajikan folder pwa/ lewat web server apa pun, misal:
-python3 -m http.server 8080 --directory pwa
-# lalu buka http://127.0.0.1:8080 (PWA fetch /api/v1/status dari origin yang sama;
-# untuk dev, jalankan di balik reverse proxy yang sama dengan API)
+# di VPS, dari checkout repo
+sudo bash deploy/install.sh
 ```
+Yang dilakukan: user `boloku`; kode → `/opt/boloku`; SQLite → `/var/lib/boloku/state.db`;
+token baru → `/etc/boloku/sync.env` (600/640, **ditampilkan sekali**, hanya jika belum ada);
+`bolo-sync.service` enabled + started; **satu** server block nginx baru untuk
+`boloku.web.id`; `nginx -t` + reload; cek health lokal. Tidak menyentuh DNS, panel, chisel,
+atau firewall. Jejak disk: < 1 MB kode + DB kecil (feed dipangkas otomatis 2000 baris).
 
-Tanpa `AGENT_TOKENS` di env, API jalan mode DEV (heartbeat apa pun
-diterima, ada warning di log). Produksi WAJIB isi `AGENT_TOKENS`
-(lihat `.env.example`).
+Lalu:
+1. **HTTPS** — ikuti `deploy/TUNNEL.md` (cek pola chisel panel dulu, read-only).
+   ⚠️ Kalau DNS `panel-api.boloku.web.id` ternyata **tidak** menunjuk ke 168.110.193.123, A record
+   `boloku.web.id` juga harus ikut ke host edge yang sama. Kalau diarahkan ke IP VPS, HTTPS akan timeout
+   karena port 443 VPS tidak listen.
+2. **Token agent Hermes** (di VPS): `sudo bash deploy/write-agent-token.sh hunter-2 <user-yang-menjalankan-hunter-2>`
+   (ulangi untuk bolo_airdrop, bolongonten). Opsional agar selalu tampil online:
+   `sudo systemctl enable --now bolo-keepalive@hunter-2` (set `User=` di unit).
+3. **Admin token** → buka PWA → ⚙ Pengaturan → tempel. Tersimpan hanya di perangkat itu.
+4. **Muse** → `reporter/MUSE-REPORTING.md` (prompt siap tempel untuk Mas Wowo & Mas Wiwi).
+5. **Acceptance**: `BOLO_AGENT=hunter-2 BOLO_TOKEN=… bash tests/acceptance.sh https://boloku.web.id`
 
-## API
+Rotasi token: `sudo python3 /opt/boloku/server/gen-tokens.py /etc/boloku/sync.env --force && sudo systemctl restart bolo-sync`.
 
-- `POST /api/v1/heartbeat` — body `{"agent_id","status","task","detail","ts"}`,
-  header `Authorization: Bearer <token-per-agent>`.
-  `status`: `working` | `idle` | `offline`.
-- `GET /api/v1/status` — snapshot semua agent
-  (`agent_id, platform, status, task, detail, last_seen, online`).
-  Tidak ada heartbeat > 60 detik -> `online: false`.
-- `GET /api/v1/events` — SSE stream perubahan status.
-- `GET /health` — `{"ok": true}`.
+## Cara tiap agent melapor
 
-## Hosting (terverifikasi 2026-11-22)
+```bash
+export BOLO_API=https://boloku.web.id/api/v1          # di VPS boleh http://127.0.0.1:8787/api/v1
+# token: env BOLO_TOKEN atau ~/.config/boloku/<agent_id>.token (600)
 
-- VPS Oracle Cloud, IP publik `168.110.193.123`, **nginx AKTIF**
-  (apache2/caddy tidak ada). Port 80 listen, port 443 TIDAK listen —
-  HTTPS panel masuk lewat tunnel (chisel).
-- Disk sisa 3,7 GB / 36 GB (90% terpakai) — dashboard + API harus ringan.
-- Jalur deploy: nginx server block baru untuk `boloku.web.id` + ekspos
-  lewat pola tunnel yang sama seperti panel. DNS A `boloku.web.id` ->
-  `168.110.193.123`.
-- Bridge exec API MATI (404, panel kini Recovery 3.0). Jangan pakai bridge.
+reporter/report-status.sh hunter-2 working "Scan airdrop baru" "chain 3/14" 20   # sekali lapor
+reporter/report-status.sh hunter-2 idle "Selesai: Scan airdrop baru"
+reporter/with-status.sh hunter-2 "Scan airdrop baru" -- python3 scan.py          # heartbeat otomatis tiap 20 dtk, idle saat selesai/gagal
+echo "working|Pantau channel pengumuman" > ~/.config/boloku/hunter-2.state          # dipakai keepalive.sh
+```
+Python: `from bolo_report import Reporter; with Reporter("hunter-2").task("Scan airdrop"): ...`
 
-## Status tampilan
+Kapan melapor: mulai tugas, ganti tugas, tiap ≤45 dtk selama bekerja, selesai/gagal, sesi berakhir.
+Token tidak pernah lewat argumen CLI (tidak terlihat di `ps`).
 
-`pwa/index.html` adalah shell live (data dari API, label LIVE/SIMULASI
-jujur). `pwa/prototype.html` adalah prototype kantor virtual isometrik
-— referensi tampilan yang harus dipindahkan Claude Code ke `index.html`
-(lihat `docs/PROMPT-CLAUDE-CODE.md`).
+## Jalankan lokal
 
-## Keamanan
+```bash
+python3 server/gen-tokens.py /tmp/bolo.env && set -a && . /tmp/bolo.env && set +a
+BOLO_DB=/tmp/bolo.db BOLO_STATIC_DIR=$PWD/pwa python3 server/app.py   # http://127.0.0.1:8787
+python3 server/test_app.py                                            # 5 tes end-to-end
+```
+`?demo=1` memaksa mode SIMULASI; `?api=<url>` mengganti API base.
 
-- Token per-agent HANYA di env (`.env`, TIDAK PERNAH di repo).
-- `.gitignore` menutup `.env`, `server/data/`, log, dan cache.
+## Menambah/mengubah agent
+Edit `server/agents.json` (id, nama, platform, warna, nomor meja 0–4) lalu tambah tokennya di `sync.env`.
+PWA otomatis mengikuti daftar dari `/status`.
