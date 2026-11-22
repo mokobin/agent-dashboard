@@ -33,12 +33,12 @@ import sys
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-VERSION = "1.0.0"
+VERSION = "2.0.0"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 HOST = os.environ.get("BOLO_HOST", "127.0.0.1")
@@ -151,6 +151,12 @@ class Store:
             if fid % 200 == 0:
                 self.db.execute("DELETE FROM feed WHERE id <= ?", (fid - FEED_KEEP,))
         return {"id": fid, "ts": iso(ts), "agent_id": agent_id, "kind": kind, "text": text}
+
+    def done_counts(self, since: float) -> dict:
+        with self.lock:
+            rows = self.db.execute("SELECT agent_id, COUNT(*) c FROM feed WHERE kind='done' AND ts>=? GROUP BY agent_id",
+                                   (since,)).fetchall()
+        return {r["agent_id"]: r["c"] for r in rows}
 
     def feed(self, limit=50):
         with self.lock:
@@ -273,6 +279,10 @@ class App:
             "role": m.get("role"),
             "color": m.get("color"),
             "desk": m.get("desk"),
+            "initials": m.get("initials"),
+            "shirt": m.get("shirt"),
+            "skin": m.get("skin"),
+            "hair": m.get("hair"),
             "status": status if online else "offline",
             "reported_status": status,
             "task": row["task"] if row else None,
@@ -288,11 +298,18 @@ class App:
     def snapshot(self) -> dict:
         t = now()
         rows = self.store.all_agent_rows()
+        done = self.store.done_counts(wib_midnight(t))
+        agents = []
+        for a in self.agents:
+            v = self.agent_view(a["agent_id"], rows.get(a["agent_id"]), t)
+            v["done_today"] = done.get(a["agent_id"], 0)
+            agents.append(v)
         return {
             "server_time": iso(t),
             "offline_after": OFFLINE_AFTER,
             "version": VERSION,
-            "agents": [self.agent_view(a["agent_id"], rows.get(a["agent_id"]), t) for a in self.agents],
+            "done_today": sum(done.values()),
+            "agents": agents,
         }
 
     # ---- auth
@@ -344,18 +361,25 @@ class App:
         view = self.agent_view(aid, t=t)
         self.hub.publish("agent", view)
 
-        name = self.meta[aid].get("name", aid)
-        feed = None
-        if not prev_view["online"] and view["online"]:
-            feed = f"{name} online — {status}" + (f": {task}" if task else "")
+        label = STATUS_ID[status]
+        feed, kind = None, "status"
+        if prev_view["online"] and prev["status"] == "working" and status == "idle":
+            done_task = prev["task"] or "tugas"
+            feed, kind = "menyelesaikan tugas: " + done_task, "done"
+            if task and not task.lower().startswith(("selesai", "gagal")):
+                feed += f" · sekarang idle: {task}"
+            if task and task.lower().startswith("gagal"):
+                feed, kind = task, "status"
+        elif not prev_view["online"] and view["online"]:
+            feed = f"online — {label}" + (f": {task}" if task else "")
         elif status == "offline" and prev_view["online"]:
-            feed = f"{name} keluar (offline)"
+            feed = "keluar (offline)"
         elif prev is not None and prev["status"] != status:
-            feed = f"{name} → {status}" + (f": {task}" if task else "")
+            feed = f"→ {label}" + (f": {task}" if task else "")
         elif prev is not None and (prev["task"] or "") != (task or ""):
-            feed = f"{name} mulai: {task}" if task else f"{name} selesai tugas"
+            feed = f"mulai: {task}" if task else "selesai tugas"
         if feed:
-            self.hub.publish("feed", self.store.add_feed(aid, "status", feed, t))
+            self.hub.publish("feed", self.store.add_feed(aid, kind, feed, t))
         return 200, {"ok": True, "agent": view}
 
     def enqueue(self, body: dict) -> tuple[int, dict]:
@@ -367,9 +391,8 @@ class App:
             return 400, {"error": "text required"}
         cmd = self.store.add_command(target, text)
         self.hub.publish("command", cmd)
-        who = "semua agent" if target == "all" else self.meta[target].get("name", target)
-        self.hub.publish("feed", self.store.add_feed(None if target == "all" else target, "command",
-                                                     f"Perintah ke {who}: {text}"))
+        who = "Semua Agent" if target == "all" else self.meta[target].get("name", target)
+        self.hub.publish("feed", self.store.add_feed(None, "command", f"Perintah dari Mas Rudy → {who}: “{text}”"))
         return 201, {"ok": True, "command": cmd}
 
     def ack(self, cid: str, agent_id: str, body: dict) -> tuple[int, dict]:
@@ -382,8 +405,8 @@ class App:
         if err == "forbidden":
             return 403, {"error": "command not addressed to this agent"}
         self.hub.publish("command", cmd)
-        name = self.meta[agent_id].get("name", agent_id)
-        self.hub.publish("feed", self.store.add_feed(agent_id, "command", f"{name} perintah #{cid[:6]} → {state}"))
+        self.hub.publish("feed", self.store.add_feed(agent_id, "command",
+                                                     f"perintah “{cmd['text'][:80]}” → {CMD_STATE_ID[state]}"))
         return 200, {"ok": True, "command": cmd}
 
     # ---- watchdog: flip agents to offline after OFFLINE_AFTER without heartbeat
@@ -399,11 +422,20 @@ class App:
                     if row["was_online"] and not v["online"]:
                         self.store.set_was_online(aid, False)
                         self.hub.publish("agent", v)
-                        name = self.meta[aid].get("name", aid)
                         self.hub.publish("feed", self.store.add_feed(
-                            aid, "offline", f"{name} tidak ada heartbeat >{int(OFFLINE_AFTER)} dtk — offline", t))
+                            aid, "offline", f"tidak ada heartbeat >{int(OFFLINE_AFTER)} dtk — offline", t))
             except Exception as e:  # keep running no matter what
                 log("watchdog error:", e)
+
+
+STATUS_ID = {"working": "bekerja", "idle": "idle", "offline": "offline"}
+CMD_STATE_ID = {"received": "diterima", "running": "berjalan", "done": "selesai", "failed": "gagal"}
+WIB = timezone(timedelta(hours=7))
+
+
+def wib_midnight(t: float) -> float:
+    d = datetime.fromtimestamp(t, tz=WIB)
+    return d.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
 
 
 def clean(v, maxlen):

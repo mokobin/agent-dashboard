@@ -137,6 +137,16 @@ class SyncAPITest(unittest.TestCase):
         _, f = self.req("GET", "/feed?limit=5")
         self.assertTrue(f["feed"])
 
+    def test_6_done_counter(self):
+        self.req("POST", "/heartbeat", {"agent_id": "mas-wiwi", "status": "working", "task": "Ringkas laporan"}, "tok-wiwi")
+        self.req("POST", "/heartbeat", {"agent_id": "mas-wiwi", "status": "idle", "task": "Selesai: Ringkas laporan"}, "tok-wiwi")
+        _, s = self.req("GET", "/status")
+        a = next(x for x in s["agents"] if x["agent_id"] == "mas-wiwi")
+        self.assertGreaterEqual(a["done_today"], 1)
+        self.assertEqual(a["initials"], "WW")
+        _, f = self.req("GET", "/feed?limit=3")
+        self.assertTrue(any(x["kind"] == "done" and "Ringkas laporan" in x["text"] for x in f["feed"]))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

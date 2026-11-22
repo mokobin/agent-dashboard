@@ -1,40 +1,54 @@
-/* BOLO HQ — PWA client. Talks to the Sync API (snapshot + SSE, 5s polling fallback). */
+/* BOLO HQ — Pusat Kendali Agent (PWA client).
+ * UI ported from docs/prototype.html; data comes from the Sync API
+ * (snapshot + SSE, 5s polling fallback, offline cache). SIMULASI only when the API was never reachable. */
 (function () {
   "use strict";
   const $ = (s, el = document) => el.querySelector(s);
   const esc = OfficeScene.esc;
 
-  // Fallback registry (used only until the first snapshot arrives, and for SIMULASI mode).
+  // Fallback registry — used until the first snapshot arrives and for SIMULASI mode.
   const DEFAULT_AGENTS = [
-    { agent_id: "bolo_airdrop", name: "Bolo_airdrop", platform: "hermes", role: "Airdrop hunter", color: "#f59e0b", desk: 0 },
-    { agent_id: "bolongonten", name: "Bolongonten", platform: "hermes", role: "Content producer", color: "#ec4899", desk: 1 },
-    { agent_id: "hunter-2", name: "Hunter-2", alias: "Nanika", platform: "hermes", role: "Hunter", color: "#22d3ee", desk: 2 },
-    { agent_id: "mas-wowo", name: "Mas Wowo", platform: "muse", role: "Operator", color: "#a78bfa", desk: 3 },
-    { agent_id: "mas-wiwi", name: "Mas Wiwi", platform: "muse", role: "Asisten utama", color: "#34d399", desk: 4 },
+    { agent_id: "bolo_airdrop", name: "Bolo_airdrop", platform: "hermes", role: "Airdrop Hunter", color: "#0d9488", initials: "BA", shirt: "#2a9d8f", skin: "#8d5524", hair: "#14100c", desk: 0 },
+    { agent_id: "bolongonten", name: "Bolongonten", platform: "hermes", role: "Content Creator", color: "#059669", initials: "BK", shirt: "#3f7d4e", skin: "#c68642", hair: "#241611", desk: 1 },
+    { agent_id: "hunter-2", name: "Hunter-2", alias: "Nanika", platform: "hermes", role: "Bug Hunter", color: "#2563eb", initials: "H2", shirt: "#33546d", skin: "#6b4423", hair: "#0d0d0f", desk: 2 },
+    { agent_id: "mas-wowo", name: "Mas Wowo", platform: "muse", role: "Agent Operasional", color: "#b45309", initials: "MW", shirt: "#7d3b3b", skin: "#a0662f", hair: "#191007", desk: 3 },
+    { agent_id: "mas-wiwi", name: "Mas Wiwi", platform: "muse", role: "Koordinator", color: "#e8590c", initials: "WW", shirt: "#c2571b", skin: "#8d5524", hair: "#120d08", desk: 4 },
   ];
-  const LS = { snap: "bolo.snapshot.v1", admin: "bolo.admin", api: "bolo.api", demo: "bolo.demo" };
+  const PLATFORMS = [["hermes", "Hermes", "#0d9488"], ["muse", "Muse", "#d97706"]];
+  const QUICK = [
+    { label: "Cek status semua agent", target: "all", text: "Laporkan status & progres tugas saat ini" },
+    { label: "Mulai sesi hunting", target: "hunter-2", text: "Mulai sesi hunting: pilih target baru dan petakan permukaannya" },
+    { label: "Render konten berikutnya", target: "bolongonten", text: "Render video berikutnya dari antrean konten" },
+    { label: "Sapu klaim airdrop", target: "bolo_airdrop", text: "Sapu semua wallet: klaim airdrop yang sudah terbuka" },
+    { label: "Siapkan ringkasan harian", target: "mas-wiwi", text: "Siapkan ringkasan aktivitas semua agent hari ini" },
+  ];
+  const ST_LABEL = { working: "Bekerja", idle: "Idle", offline: "Offline" };
+  const Q_LABEL = { queued: "antre", received: "diterima", running: "berjalan", done: "selesai", failed: "gagal" };
+
+  const LS = { snap: "bolo.snapshot.v2", admin: "bolo.admin", api: "bolo.api", demo: "bolo.demo" };
   const ls = {
     get(k, d = null) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
     del(k) { try { localStorage.removeItem(k); } catch {} },
   };
-
   const qs = new URLSearchParams(location.search);
   const API = (qs.get("api") || ls.get(LS.api) || "/api/v1").replace(/\/$/, "");
   const FORCE_DEMO = qs.get("demo") === "1" || ls.get(LS.demo) === true;
 
   const state = {
-    agents: new Map(), order: [], feed: [], commands: [],
-    mode: "connecting",       // live | polling | cache | sim | connecting
-    hasRealData: false, lastSync: 0, savedAt: 0, offlineAfter: 60, skew: 0, version: null,
-    es: null, pollTimer: null, retryTimer: null, simTimer: null, sceneKey: "",
+    agents: new Map(), order: [], feed: [], commands: [], selected: null,
+    mode: "connecting", hasRealData: false, lastSync: 0, savedAt: 0, offlineAfter: 60, skew: 0, version: null,
+    es: null, pollTimer: null, retryTimer: null, simTimer: null, uiKey: "", detailSig: "",
   };
 
-  // ---------------------------------------------------------------- time helpers
-  const fmtWIB = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-  const fmtWIBshort = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", hour12: false });
-  const fmtDate = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "short", day: "numeric", month: "short" });
-  const fmtFull = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  // ---------------------------------------------------------------- time
+  const TZ = "Asia/Jakarta";
+  const fHMS = new Intl.DateTimeFormat("id-ID", { timeZone: TZ, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  const fLong = new Intl.DateTimeFormat("id-ID", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const fShort = new Intl.DateTimeFormat("id-ID", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
+  const fFull = new Intl.DateTimeFormat("id-ID", { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  const hms = (d) => fHMS.format(d).replace(/\./g, ":");
+  const full = (d) => fFull.format(d).replace(/\./g, ":");
   const serverNow = () => Date.now() + state.skew;
   const parseTs = (s) => (s ? Date.parse(s) : NaN);
   function ago(ms) {
@@ -44,15 +58,16 @@
     if (s < 60) return `${s} dtk lalu`;
     if (s < 3600) return `${Math.floor(s / 60)} mnt lalu`;
     if (s < 86400) return `${Math.floor(s / 3600)} jam lalu`;
-    return fmtFull.format(ms) + " WIB";
+    return full(ms) + " WIB";
   }
-  function dur(ms) {
+  function fmtSess(ms) {
     const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
-    return (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(x).padStart(2, "0");
+    return (h ? h + ":" : "") + String(m).padStart(2, "0") + ":" + String(x).padStart(2, "0");
   }
 
-  // ---------------------------------------------------------------- derived agent state
+  // ---------------------------------------------------------------- derived state
   function derive(a) {
+    if (!a) return a;
     if (state.mode === "sim") return a;
     const seen = parseTs(a.last_seen);
     const fresh = isFinite(seen) && serverNow() - seen <= state.offlineAfter * 1000;
@@ -60,120 +75,218 @@
     const online = fresh && rep !== "offline";
     return Object.assign({}, a, { online, status: online ? rep : "offline" });
   }
+  const list = () => state.order.map((id) => derive(state.agents.get(id)));
+  const nameOf = (id) => (state.agents.get(id) || {}).name || id;
+  const colorOf = (id) => (state.agents.get(id) || {}).color || "#94a3b8";
+  const sessMs = (a) => { const t = parseTs(a.task_started); return a.online && isFinite(t) ? serverNow() - t : null; };
 
-  function bubbleText(a) {
-    const sim = state.mode === "sim" ? "SIMULASI · " : "";
-    if (a.status === "working") return sim + (a.task || "Sedang bekerja…") + (a.progress != null ? ` · ${Math.round(a.progress)}%` : "");
-    if (a.status === "idle") return sim + (a.task ? `Idle — ${a.task}` : "Idle, menunggu tugas");
-    const seen = parseTs(a.last_seen);
-    return sim + (isFinite(seen) ? `Offline · terakhir terlihat ${ago(seen)}` : "Offline · belum pernah lapor");
+  function taskLine(a) {
+    if (a.status === "offline") {
+      const seen = parseTs(a.last_seen);
+      return isFinite(seen) ? `Offline · terakhir terlihat ${ago(seen)}` : "Offline · belum pernah lapor";
+    }
+    if (a.status === "idle") return a.task ? `Idle — ${a.task}` : "Idle, menunggu perintah berikutnya";
+    return a.task || "Sedang bekerja…";
   }
 
-  // ---------------------------------------------------------------- rendering
-  function ensureScene() {
-    const list = state.order.map((id) => state.agents.get(id));
-    const key = list.map((a) => a.agent_id + a.color + a.desk).join("|");
-    if (key === state.sceneKey) return;
-    state.sceneKey = key;
-    OfficeScene.build($("#scene"), list);
-    const sc = $("#scene-scroll");
-    sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) / 2;
-    renderTargets(list);
+  // ---------------------------------------------------------------- build (once per agent set)
+  function ensureUI() {
+    const agents = list();
+    const key = agents.map((a) => [a.agent_id, a.name, a.color, a.desk, a.platform].join(":")).join("|");
+    if (key === state.uiKey) return;
+    state.uiKey = key;
+    if (!state.selected || !state.agents.has(state.selected)) state.selected = state.agents.has("mas-wiwi") ? "mas-wiwi" : state.order[0];
+
+    OfficeScene.build($("#sceneWrap"), agents, selectAgent);
+
+    const L = $("#agentList");
+    L.innerHTML = "";
+    const known = PLATFORMS.map((p) => p[0]);
+    const plats = PLATFORMS.concat([...new Set(agents.map((a) => a.platform).filter((p) => !known.includes(p)))].map((p) => [p, p, "#64748b"]));
+    plats.forEach(([pid, pname, pcolor]) => {
+      const group = agents.filter((a) => a.platform === pid);
+      if (!group.length) return;
+      L.insertAdjacentHTML("beforeend", `<div class="group-label"><span class="gdot" style="background:${pcolor}"></span>Platform ${esc(pname)}</div>`);
+      group.forEach((a) => {
+        L.insertAdjacentHTML("beforeend", `
+          <div class="agent-row" id="row-${esc(a.agent_id)}" data-agent="${esc(a.agent_id)}" role="button" tabindex="0">
+            <div class="avatar" style="background:${esc(a.color)}">${esc(a.initials || a.name.slice(0, 2).toUpperCase())}</div>
+            <div><div class="nm">${esc(a.name)}<span class="plat ${esc(a.platform)}">${esc(pname)}</span></div>
+              <div class="task" id="task-${esc(a.agent_id)}"></div>
+              <div class="pbar"><i id="bar-${esc(a.agent_id)}"></i></div></div>
+            <div class="row-side"><span class="status-pill offline" id="pill-${esc(a.agent_id)}">Offline</span>
+              <div class="sess mono" id="sess-${esc(a.agent_id)}">--:--</div></div>
+          </div>`);
+      });
+    });
+    L.querySelectorAll(".agent-row").forEach((r) => {
+      r.addEventListener("click", () => selectAgent(r.dataset.agent));
+      r.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAgent(r.dataset.agent); } });
+    });
+
+    const sel = $("#cmdTarget"), cur = sel.value;
+    sel.innerHTML = `<option value="all">Semua Agent</option>` + agents.map((a) => `<option value="${esc(a.agent_id)}">${esc(a.name)}</option>`).join("");
+    if (cur) sel.value = cur;
+
+    const Q = $("#quickCmds");
+    Q.innerHTML = "";
+    QUICK.filter((q) => q.target === "all" || state.agents.has(q.target)).forEach((q) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = q.label;
+      b.addEventListener("click", () => sendCommand(q.target, q.text));
+      Q.appendChild(b);
+    });
+    state.detailSig = "";
   }
 
-  function renderAll() {
-    ensureScene();
-    renderAgents();
-    renderFeed();
-    renderQueue();
-    renderMode();
-  }
+  // ---------------------------------------------------------------- render
+  function renderAll() { ensureUI(); renderAgents(); renderFeed(); renderQueue(); renderMode(); }
 
   function renderAgents() {
-    const list = state.order.map((id) => derive(state.agents.get(id)));
-    const counts = { working: 0, idle: 0, offline: 0 };
-    list.forEach((a) => { counts[a.status] = (counts[a.status] || 0) + 1; OfficeScene.update(a, bubbleText(a)); });
-    $("#stats").innerHTML = `<span>🟢 ${counts.working} bekerja</span><span>🟡 ${counts.idle} idle</span><span>⚫ ${counts.offline} offline</span>`;
-
-    const groups = {};
-    list.forEach((a) => (groups[a.platform || "lain"] ||= []).push(a));
-    $("#agent-groups").innerHTML = Object.entries(groups).map(([p, arr]) => `
-      <div class="group">
-        <div class="group-h"><span class="pill ${esc(p)}">${esc(p.toUpperCase())}</span>${arr.filter((a) => a.online).length}/${arr.length} online</div>
-        ${arr.map(agentCard).join("")}
-      </div>`).join("");
+    const agents = list();
+    let working = 0, idle = 0, offline = 0, online = 0, done = 0;
+    agents.forEach((a) => {
+      if (a.status === "working") working++; else if (a.status === "idle") idle++; else offline++;
+      if (a.online) online++;
+      done += a.done_today || 0;
+      const id = a.agent_id;
+      OfficeScene.update(a, id === state.selected);
+      const row = document.getElementById("row-" + id);
+      if (!row) return;
+      row.classList.toggle("selected", id === state.selected);
+      row.classList.toggle("offline", a.status === "offline");
+      const t = document.getElementById("task-" + id);
+      t.textContent = a.status === "offline" ? (a.task ? "Terakhir: " + a.task : taskLine(a)) : a.status === "idle" ? (a.task || "Menunggu perintah") : (a.task || "Sedang bekerja…");
+      t.classList.toggle("muted", a.status === "offline");
+      const bar = document.getElementById("bar-" + id);
+      bar.style.width = (a.progress != null && a.status !== "offline" ? Math.max(0, Math.min(100, a.progress)) : a.status === "working" ? 8 : 0) + "%";
+      bar.className = a.status === "working" ? "" : a.status;
+      const pill = document.getElementById("pill-" + id);
+      pill.className = "status-pill " + a.status; pill.textContent = ST_LABEL[a.status];
+      const ms = sessMs(a);
+      const seen = parseTs(a.last_seen);
+      document.getElementById("sess-" + id).textContent = ms != null ? fmtSess(ms) : isFinite(seen) ? ago(seen) : "--:--";
+    });
+    const total = agents.length;
+    $("#statOnline").textContent = `${online}/${total}`;
+    $("#statRunning").textContent = working;
+    $("#statDone").textContent = state.mode === "sim" ? (state.simDone || 0) : done;
+    $("#ctrlTag").textContent = `${working} bekerja · ${idle} idle · ${offline} offline`;
+    renderDetail();
+    renderBubble();
   }
 
-  function agentCard(a) {
-    const seen = parseTs(a.last_seen), started = parseTs(a.task_started);
-    const timer = a.online && isFinite(started) ? `⏱ ${dur(serverNow() - started)}` : "";
-    const initials = a.name.replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-    const task = a.status === "offline" ? (a.task ? `Terakhir: ${a.task}` : "—") : a.task || (a.status === "idle" ? "Menunggu tugas" : "Bekerja…");
-    return `<div class="agent status-${a.status}" data-agent="${esc(a.agent_id)}" role="button" tabindex="0">
-      <div class="avatar" style="background:${esc(a.color || "#60a5fa")}">${esc(initials)}</div>
-      <div class="a-main">
-        <div class="a-name">${esc(a.name)}${a.alias ? ` <small>(${esc(a.alias)})</small>` : ""}</div>
-        <div class="a-task" title="${esc(task)}">${esc(task)}</div>
-        <div class="a-meta">${timer ? `<span>${timer}</span>` : ""}<span>${isFinite(seen) ? "dilihat " + ago(seen) : "belum pernah lapor"}</span></div>
-        ${a.progress != null && a.online ? `<div class="bar"><i style="width:${Math.max(0, Math.min(100, a.progress))}%"></i></div>` : ""}
-      </div>
-      <span class="chip ${a.status}">${a.status === "working" ? "bekerja" : a.status}</span>
-    </div>`;
+  function renderBubble() {
+    const a = derive(state.agents.get(state.selected));
+    const b = $("#bubble");
+    if (!a) { b.hidden = true; return; }
+    b.hidden = false;
+    const p = OfficeScene.chipPos(a.agent_id);
+    b.style.left = Math.min(84, Math.max(15, p.left)) + "%";
+    b.style.top = p.top + "%";
+    $("#bubbleName").textContent = a.name + (a.status !== "working" ? " · " + ST_LABEL[a.status] : "");
+    $("#bubbleName").style.color = a.color;
+    $("#bubbleText").textContent = (state.mode === "sim" ? "SIMULASI · " : "") + taskLine(a) + (a.status === "working" && a.progress != null ? ` · ${Math.round(a.progress)}%` : "");
+    $("#bubbleDots").style.display = a.status === "working" ? "inline-flex" : "none";
   }
 
-  function nameOf(id) { const a = state.agents.get(id); return a ? a.name : id || "Sistem"; }
+  function renderDetail() {
+    const a = derive(state.agents.get(state.selected));
+    const D = $("#detailCard");
+    if (!a) { D.innerHTML = ""; return; }
+    const sim = state.mode === "sim";
+    const sig = JSON.stringify([a.agent_id, a.status, a.task, a.detail, a.role, a.platform, sim, state.mode]);
+    const plat = (PLATFORMS.find((p) => p[0] === a.platform) || [0, a.platform])[1];
+    if (sig !== state.detailSig) {
+      state.detailSig = sig;
+      D.innerHTML = `
+        <h3>${esc(a.name)}${a.alias ? ` <span class="role">(${esc(a.alias)})</span>` : ""}</h3>
+        <div class="role">${esc(a.role || "Agent")} · Platform ${esc(plat)}</div>
+        <div class="cur"><span class="lbl">${a.status === "offline" ? "Tugas terakhir" : "Tugas saat ini"}</span><span id="detailTask"></span>${a.detail ? `<pre>${esc(a.detail)}</pre>` : ""}</div>
+        <div class="meta"><span>Progres <b id="detailProg">—</b></span><span>Sesi <b id="detailSess">--:--</b></span><span>Selesai <b id="detailDone">0 tugas</b></span></div>
+        <div class="meta2" id="detailSeen"></div>
+        <div class="btn-row">
+          <button class="btn" id="btnPause" type="button" ${sim || a.status === "offline" ? "disabled" : ""}>Jeda</button>
+          <button class="btn" id="btnDone" type="button" ${sim || a.status === "offline" ? "disabled" : ""}>Selesaikan Tugas</button>
+          <button class="btn primary" id="btnCmd" type="button">Beri Perintah</button>
+        </div>`;
+      $("#btnPause").onclick = () => sendCommand(a.agent_id, "Jeda tugas saat ini dan laporkan status");
+      $("#btnDone").onclick = () => sendCommand(a.agent_id, "Selesaikan tugas saat ini lalu laporkan hasilnya");
+      $("#btnCmd").onclick = () => { $("#cmdTarget").value = a.agent_id; $("#cmdText").focus(); $("#cmdText").scrollIntoView({ behavior: "smooth", block: "center" }); };
+    }
+    $("#detailTask").textContent = a.task || (a.status === "idle" ? "Menunggu perintah berikutnya" : "—");
+    $("#detailProg").textContent = a.progress != null && a.status !== "offline" ? Math.round(a.progress) + "%" : "—";
+    const ms = sessMs(a);
+    $("#detailSess").textContent = ms != null ? fmtSess(ms) : "--:--";
+    $("#detailDone").textContent = (a.done_today || 0) + " tugas";
+    const seen = parseTs(a.last_seen);
+    $("#detailSeen").textContent = isFinite(seen) ? `Heartbeat terakhir ${full(seen)} WIB · ${ago(seen)}` : "Belum pernah mengirim heartbeat";
+  }
 
   function renderFeed() {
-    const el = $("#feed");
-    if (!state.feed.length) { el.innerHTML = `<li class="empty">Belum ada aktivitas.</li>`; return; }
-    el.innerHTML = state.feed.slice(0, 60).map((f) => {
+    const F = $("#feed");
+    if (!state.feed.length) { F.innerHTML = `<li><span class="empty">Belum ada aktivitas.</span></li>`; return; }
+    F.innerHTML = state.feed.slice(0, 40).map((f) => {
       const t = parseTs(f.ts);
-      return `<li class="k-${esc(f.kind)}"><time title="${isFinite(t) ? fmtFull.format(t) : ""}">${isFinite(t) ? fmtWIBshort.format(t) : "--:--"}</time><span>${esc(f.text)}</span></li>`;
+      const who = f.agent_id ? `<b>${esc(nameOf(f.agent_id))}</b> — ` : "";
+      const cls = f.kind === "command" ? "cmd-evt" : "k-" + esc(f.kind);
+      return `<li><span class="ft">${isFinite(t) ? hms(t) : "--:--:--"}</span><span class="fd" style="background:${f.agent_id ? esc(colorOf(f.agent_id)) : f.kind === "command" ? "var(--accent)" : "#94a3b8"}"></span><span>${who}<span class="${cls}">${esc(f.text)}</span></span></li>`;
     }).join("");
   }
 
   function renderQueue() {
-    const el = $("#queue");
-    const open = state.commands.slice(0, 40);
-    if (!open.length) { el.innerHTML = `<li class="empty">Antrean kosong.</li>`; return; }
-    el.innerHTML = open.map((c) => {
+    const Q = $("#queueList");
+    const items = state.commands.slice(0, 8);
+    $("#queueEmpty").style.display = items.length ? "none" : "block";
+    Q.innerHTML = items.map((c) => {
       const t = parseTs(c.created);
-      return `<li><div class="li-top"><span>→ ${esc(c.target === "all" ? "Semua agent" : nameOf(c.target))} · ${isFinite(t) ? ago(t) : ""}</span><span class="chip ${esc(c.state)}">${esc(c.state)}</span></div>${esc(c.text)}${c.note ? `<div class="muted">↳ ${esc(c.note)}</div>` : ""}</li>`;
+      const who = c.target === "all" ? "Semua Agent" : nameOf(c.target);
+      return `<li><span class="q-agent" style="color:${c.target === "all" ? "var(--accent)" : esc(colorOf(c.target))}">${esc(who)}</span><span class="q-text">${esc(c.text)}${c.note ? ` <span class="q-when">↳ ${esc(c.note)}</span>` : ""}</span><span class="q-when">${isFinite(t) ? ago(t) : ""}</span><span class="q-state ${esc(c.state)}">${esc(Q_LABEL[c.state] || c.state)}</span></li>`;
     }).join("");
-  }
-
-  function renderTargets(list) {
-    const sel = $("#cmd-target"), cur = sel.value;
-    sel.innerHTML = `<option value="all">📣 Semua agent</option>` + list.map((a) => `<option value="${esc(a.agent_id)}">${esc(a.name)} · ${esc((a.platform || "").toUpperCase())}</option>`).join("");
-    if (cur) sel.value = cur;
   }
 
   const MODE_LABEL = { live: "LIVE", polling: "POLLING", cache: "DATA TERAKHIR", sim: "SIMULASI", connecting: "MENGHUBUNGKAN" };
   function renderMode() {
-    const c = $("#conn");
-    c.className = "conn mode-" + state.mode;
+    $("#conn").className = "live-pill mode-" + state.mode;
     $("#conn-label").textContent = MODE_LABEL[state.mode];
-    $(".sim-watermark").hidden = state.mode !== "sim";
+    $("#simMark").hidden = state.mode !== "sim";
     const b = $("#banner");
     if (state.mode === "sim") {
       b.hidden = false; b.className = "banner sim";
       b.innerHTML = `<b>SIMULASI</b> — Sync API belum tersambung${FORCE_DEMO ? " (mode demo aktif)" : ""}. Status &amp; tugas di bawah ini <b>bukan</b> status asli agent.`;
     } else if (state.mode === "cache") {
       b.hidden = false; b.className = "banner cache";
-      b.innerHTML = `Tidak terhubung ke server — menampilkan <b>data terakhir ${state.savedAt ? fmtFull.format(state.savedAt) + " WIB" : ""}</b>. Mencoba lagi otomatis…`;
+      b.innerHTML = `Tidak terhubung ke server — menampilkan <b>data terakhir ${state.savedAt ? full(state.savedAt) + " WIB" : ""}</b>. Mencoba lagi otomatis…`;
     } else b.hidden = true;
-    const ls_ = state.lastSync ? `Sinkron terakhir: ${fmtFull.format(state.lastSync)} WIB (${ago(state.lastSync)})` : "Belum pernah sinkron";
-    $("#last-sync").textContent = state.mode === "sim" ? "Mode SIMULASI — tidak ada data asli" : ls_;
-    const dis = state.mode === "sim";
-    $("#cmd-send").disabled = dis;
-    $("#cmd-hint").textContent = dis ? "Pusat Perintah nonaktif saat SIMULASI." : "Perintah masuk antrean. Eksekusi oleh agent = fase berikutnya.";
-    if (state.version) $("#ver").textContent = state.version;
+    $("#footNote").textContent = state.mode === "sim"
+      ? "Status & aktivitas di halaman ini sedang berjalan sebagai SIMULASI di browser — bukan status asli agent."
+      : "Status di halaman ini berasal dari heartbeat asli tiap agent lewat Sync API.";
+    $("#feedTag").textContent = state.mode === "sim" ? "Simulasi gerak aktivitas tiap agent" : "Dari heartbeat asli tiap agent";
+    $("#cmdTag").textContent = state.mode === "sim" ? "Nonaktif saat SIMULASI" : "Perintah masuk antrean agent";
+    $("#cmdSend").disabled = state.mode === "sim";
+    $("#quickCmds").querySelectorAll("button").forEach((x) => (x.disabled = state.mode === "sim"));
+    state.detailSig = "";
+    renderLastSync();
+  }
+  function renderLastSync() {
+    $("#lastSync").textContent = state.mode === "sim" ? "" : state.lastSync ? `Sinkron terakhir ${full(state.lastSync)} WIB (${ago(state.lastSync)})${state.version ? " · v" + state.version : ""}` : "";
+  }
+
+  // ---------------------------------------------------------------- selection
+  function selectAgent(id) {
+    if (!state.agents.has(id)) return;
+    state.selected = id;
+    state.detailSig = "";
+    renderAgents();
+    if (window.matchMedia("(max-width: 1080px)").matches && !document.activeElement?.closest?.(".agent-row")) {
+      // tapping in the scene on mobile: nothing else to do — the bubble already moved
+    }
   }
 
   // ---------------------------------------------------------------- data in
-  function setAgents(list) {
-    list.forEach((a) => state.agents.set(a.agent_id, Object.assign({}, state.agents.get(a.agent_id) || {}, a)));
-    const ids = list.map((a) => a.agent_id);
+  function setAgents(arr) {
+    arr.forEach((a) => state.agents.set(a.agent_id, Object.assign({}, state.agents.get(a.agent_id) || {}, a)));
+    const ids = arr.map((a) => a.agent_id);
     state.order = [...ids, ...state.order.filter((id) => !ids.includes(id))];
   }
 
@@ -197,10 +310,8 @@
     clearTimeout(persistT);
     persistT = setTimeout(() => {
       state.savedAt = Date.now();
-      ls.set(LS.snap, {
-        savedAt: state.savedAt, skew: state.skew, offlineAfter: state.offlineAfter, version: state.version,
-        agents: state.order.map((id) => state.agents.get(id)), feed: state.feed.slice(0, 60), commands: state.commands.slice(0, 40),
-      });
+      ls.set(LS.snap, { savedAt: state.savedAt, skew: state.skew, offlineAfter: state.offlineAfter, version: state.version,
+        agents: state.order.map((id) => state.agents.get(id)), feed: state.feed.slice(0, 60), commands: state.commands.slice(0, 40) });
     }, 400);
   }
 
@@ -213,11 +324,9 @@
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeout);
     try {
-      const r = await fetch(API + path, {
-        method, signal: ctl.signal, cache: "no-store",
+      const r = await fetch(API + path, { method, signal: ctl.signal, cache: "no-store",
         headers: Object.assign({ "Content-Type": "application/json" }, token ? { Authorization: "Bearer " + token } : {}),
-        body: body ? JSON.stringify(body) : undefined,
-      });
+        body: body ? JSON.stringify(body) : undefined });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) { const e = new Error(data.error || "HTTP " + r.status); e.status = r.status; throw e; }
       if (r.headers.get("X-From-Cache") === "1") { const e = new Error("offline cache"); e.cached = true; throw e; }
@@ -236,12 +345,11 @@
     try {
       await pullAll();
       stopSim();
-      setMode("polling");
-      openSSE();
+      state.mode = "polling";
       renderAll();
+      openSSE();
     } catch (e) {
-      if (!state.hasRealData) startSim();
-      else setMode("cache");
+      if (!state.hasRealData) startSim(); else setMode("cache");
       state.retryTimer = setTimeout(connect, 5000);
     }
   }
@@ -256,16 +364,22 @@
     es.addEventListener("snapshot", (ev) => {
       const d = JSON.parse(ev.data);
       applySnapshot(d.snapshot, { feed: d.feed, commands: d.commands });
-      stopPolling(); setMode("live"); renderAll();
+      stopPolling(); state.mode = "live"; renderAll();
     });
     es.addEventListener("agent", (ev) => {
       const a = JSON.parse(ev.data);
       setAgents([a]); state.lastSync = Date.now(); persist();
+      if (a.agent_id === state.selected) state.detailSig = "";
       renderAgents();
-      const b = document.getElementById("bub-" + a.agent_id);
-      if (b) { b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); }
+      const c = document.getElementById("chip-" + a.agent_id);
+      if (c) { c.animate([{ transform: "translate(-50%,-100%) scale(1.18)" }, { transform: "translate(-50%,-100%) scale(1)" }], { duration: 600, easing: "ease-out" }); }
     });
-    es.addEventListener("feed", (ev) => { state.feed.unshift(JSON.parse(ev.data)); state.feed.length = Math.min(state.feed.length, 200); persist(); renderFeed(); });
+    es.addEventListener("feed", (ev) => {
+      const f = JSON.parse(ev.data);
+      state.feed.unshift(f); state.feed.length = Math.min(state.feed.length, 200);
+      if (f.kind === "done" && state.agents.has(f.agent_id)) { const a = state.agents.get(f.agent_id); a.done_today = (a.done_today || 0) + 1; renderAgents(); }
+      persist(); renderFeed();
+    });
     es.addEventListener("command", (ev) => { upsertCommand(JSON.parse(ev.data)); persist(); renderQueue(); });
     es.addEventListener("ping", (ev) => {
       const st = parseTs(JSON.parse(ev.data).server_time);
@@ -278,109 +392,100 @@
   function startPolling() {
     if (state.pollTimer) return;
     state.pollTimer = setInterval(async () => {
-      try { await pullAll(); if (state.mode !== "live") setMode("polling"); renderAll(); }
+      try { await pullAll(); if (state.mode !== "live") state.mode = "polling"; renderAll(); }
       catch { setMode("cache"); }
     }, 5000);
   }
   function stopPolling() { clearInterval(state.pollTimer); state.pollTimer = null; }
 
-  // ---------------------------------------------------------------- SIMULASI (clearly labelled, never presented as real)
+  // ---------------------------------------------------------------- commands
+  async function sendCommand(target, text) {
+    if (state.mode === "sim") return toast("Mode SIMULASI — perintah tidak dikirim ke agent.");
+    text = (text || "").trim();
+    if (!text) return $("#cmdText").focus();
+    const token = ls.get(LS.admin);
+    if (!token) { toast("Isi admin token dulu di Pengaturan."); return openSettings(); }
+    try {
+      const r = await fetchJSON("/commands", { method: "POST", body: { target, text }, token });
+      upsertCommand(r.command); renderQueue();
+      if (target !== "all") selectAgent(target);
+      toast(`Perintah masuk antrean ${target === "all" ? "semua agent" : nameOf(target)} ✓`);
+      return true;
+    } catch (err) {
+      if (err.status === 401) { toast("Admin token salah."); openSettings(); }
+      else toast("Gagal kirim: " + err.message);
+      return false;
+    }
+  }
+  $("#cmdForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("#cmdSend").disabled = true;
+    const ok = await sendCommand($("#cmdTarget").value, $("#cmdText").value);
+    if (ok) $("#cmdText").value = "";
+    $("#cmdSend").disabled = state.mode === "sim";
+  });
+
+  // ---------------------------------------------------------------- SIMULASI (clearly labelled; mirrors the prototype engine)
   const SIM_TASKS = {
-    "bolo_airdrop": ["Scan airdrop baru di 14 chain", "Cek eligibility wallet #3", "Isi form whitelist", "Rekap poin quest mingguan"],
-    "bolongonten": ["Draft caption konten harian", "Render thumbnail 3 varian", "Jadwalkan posting jam 19:00", "Riset tren mingguan"],
-    "hunter-2": ["Berburu peluang baru", "Verifikasi link resmi proyek", "Pantau channel pengumuman", "Kumpulkan laporan"],
-    "mas-wowo": ["Upload video recap ke YouTube", "Cek antrean render", "Balas komentar channel", "Backup naskah"],
-    "mas-wiwi": ["Susun naskah recap chapter 120", "Koordinasi tugas agent", "Ringkas laporan harian", "Siapkan SETUP proyek baru"],
+    bolo_airdrop: ["Memindai eligibility wallet untuk airdrop baru", "Mengecek snapshot & daftar klaim token", "Memantau pengumuman airdrop terbaru", "Verifikasi tugas testnet harian"],
+    bolongonten: ["Render video Tongki episode baru", "Menulis naskah Shorts Calistung A–Z", "Menjadwalkan antrean upload konten", "Membuat thumbnail & caption video"],
+    "hunter-2": ["Memindai permukaan serangan target", "Menjalankan PoC di sandbox lokal", "Memvalidasi temuan sebelum masuk laporan", "Menyusun paket bukti & hash SHA256"],
+    "mas-wowo": ["Menyiapkan laporan triase vendor", "Mengecek antrean QC Dapur", "Memperbarui register temuan", "Merapikan catatan hunt terakhir"],
+    "mas-wiwi": ["Mengelola dashboard pusat kendali", "Sinkronisasi status semua agent", "Menyiapkan ringkasan aktivitas harian", "Mengatur jadwal dan pengingat harian"],
   };
+  function simFeed(agent_id, text, kind = "sim") {
+    state.feed.unshift({ ts: new Date(serverNow()).toISOString(), agent_id, kind, text });
+    state.feed.length = Math.min(state.feed.length, 30);
+  }
   function startSim() {
     if (state.mode === "sim" && state.simTimer) return;
     if (!state.order.length) setAgents(DEFAULT_AGENTS);
-    state.mode = "sim";
-    const now = new Date().toISOString();
+    state.mode = "sim"; state.simDone = 0;
+    const now = Date.now();
     state.order.forEach((id, i) => {
       const a = state.agents.get(id), tasks = SIM_TASKS[id] || ["Tugas contoh"];
-      Object.assign(a, { status: i === 3 ? "offline" : i % 2 ? "idle" : "working", online: i !== 3, task: tasks[0], progress: i % 2 ? null : 20 + i * 15,
-        last_seen: i === 3 ? new Date(Date.now() - 7 * 60000).toISOString() : now, task_started: new Date(Date.now() - (i + 1) * 97000).toISOString() });
+      Object.assign(a, { status: "working", online: true, task: tasks[i % tasks.length], progress: 12 + ((i * 17) % 40), detail: null,
+        last_seen: new Date(now).toISOString(), task_started: new Date(now).toISOString(), done_today: 0, _ti: i % tasks.length, _sp: 0.8 + (i % 3) * 0.25 });
     });
-    state.feed = [{ ts: now, kind: "sim", text: "[SIMULASI] Data contoh — Sync API belum tersambung." }];
-    state.commands = [];
+    state.feed = []; state.commands = [];
+    simFeed(null, "Dashboard dibuka — 5 agent tampil dalam satu ruangan (mode SIMULASI)");
     renderAll();
     clearInterval(state.simTimer);
+    let n = 0;
     state.simTimer = setInterval(() => {
-      const id = state.order[Math.floor(Math.random() * state.order.length)], a = state.agents.get(id), tasks = SIM_TASKS[id] || ["Tugas contoh"];
-      const r = Math.random(), t = new Date().toISOString();
-      if (r < 0.15) Object.assign(a, { status: "offline", online: false });
-      else if (r < 0.4) Object.assign(a, { status: "idle", online: true, progress: null, last_seen: t, task_started: t });
-      else Object.assign(a, { status: "working", online: true, task: tasks[Math.floor(Math.random() * tasks.length)], progress: Math.floor(Math.random() * 90) + 5, last_seen: t, task_started: t });
-      state.feed.unshift({ ts: t, kind: "sim", text: `[SIMULASI] ${a.name} → ${a.status}${a.status === "working" ? ": " + a.task : ""}` });
-      state.feed.length = Math.min(state.feed.length, 40);
-      renderAgents(); renderFeed();
-    }, 4500);
+      n++;
+      state.order.forEach((id) => {
+        const a = state.agents.get(id), tasks = SIM_TASKS[id] || ["Tugas contoh"];
+        a.last_seen = new Date(serverNow()).toISOString();
+        if (a.status !== "working") return;
+        a.progress += (Math.random() * 2.1 + 0.7) * a._sp;
+        if (a.progress >= 100) {
+          simFeed(id, "menyelesaikan tugas: " + a.task, "done");
+          a.done_today++; state.simDone++;
+          a._ti = (a._ti + 1) % tasks.length; a.task = tasks[a._ti]; a.progress = 0; a.task_started = new Date(serverNow()).toISOString();
+          renderFeed();
+        }
+      });
+      if (n % 9 === 0) {
+        const a = state.agents.get(state.order[Math.floor(Math.random() * state.order.length)]);
+        if (a.status === "working" && Math.random() < 0.35) { a.status = "idle"; simFeed(a.agent_id, "rehat sebentar (idle)"); }
+        else if (a.status === "idle") { a.status = "working"; a.task_started = new Date(serverNow()).toISOString(); simFeed(a.agent_id, "melanjutkan: " + a.task); }
+        else simFeed(a.agent_id, ["menyimpan progres kerja", "sinkronisasi data terakhir", "memeriksa notifikasi masuk", "menjalankan pemeriksaan rutin"][n % 4]);
+        renderFeed();
+      }
+      if (state.selected && state.agents.get(state.selected)) state.detailSig = state.detailSig; // timers refresh via tick
+    }, 1000);
   }
   function stopSim() {
-    if (!state.simTimer && state.mode !== "sim") return;
     clearInterval(state.simTimer); state.simTimer = null;
-    if (state.mode === "sim") state.mode = "connecting";
+    if (state.mode === "sim") { state.mode = "connecting"; state.feed = []; }
   }
 
-  // ---------------------------------------------------------------- UI events
-  function openAgent(id) {
-    const a = derive(state.agents.get(id)); if (!a) return;
-    const seen = parseTs(a.last_seen), started = parseTs(a.task_started);
-    $("#sheet-body").innerHTML = `
-      <h2>${esc(a.name)} ${a.alias ? `<small class="muted">(${esc(a.alias)})</small>` : ""}</h2>
-      <span class="chip ${a.status}">${a.status}</span> <span class="pill ${esc(a.platform)}" style="padding:2px 8px;border-radius:6px;color:#0b1024;font-weight:800;font-size:11px">${esc((a.platform || "").toUpperCase())}</span>
-      ${state.mode === "sim" ? ` <span class="chip failed">SIMULASI</span>` : ""}
-      <dl>
-        <dt>Peran</dt><dd>${esc(a.role || "—")}</dd>
-        <dt>Tugas</dt><dd>${esc(a.task || "—")}</dd>
-        <dt>Detail</dt><dd>${a.detail ? `<pre>${esc(a.detail)}</pre>` : "—"}</dd>
-        <dt>Progress</dt><dd>${a.progress != null ? Math.round(a.progress) + "%" : "—"}</dd>
-        <dt>Sesi tugas</dt><dd>${a.online && isFinite(started) ? dur(serverNow() - started) + " (mulai " + fmtFull.format(started) + ")" : "—"}</dd>
-        <dt>Terakhir terlihat</dt><dd>${isFinite(seen) ? fmtFull.format(seen) + " WIB · " + ago(seen) : "belum pernah lapor"}</dd>
-        <dt>Agent ID</dt><dd><code>${esc(a.agent_id)}</code></dd>
-      </dl>
-      <div class="row between" style="margin-top:14px"><span></span><button class="btn" id="sheet-cmd" ${state.mode === "sim" ? "disabled" : ""}>Kirim perintah ke ${esc(a.name)}</button></div>`;
-    $("#sheet").showModal();
-    $("#sheet-cmd").onclick = () => { $("#sheet").close(); $("#cmd-target").value = id; $("#cmd-text").focus(); $("#panel-command").scrollIntoView({ behavior: "smooth", block: "center" }); };
-  }
-
+  // ---------------------------------------------------------------- settings / misc UI
   function toast(msg) {
     const t = $("#toast"); t.textContent = msg; t.classList.add("show");
     clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600);
   }
-
-  document.addEventListener("click", (e) => {
-    const bub = e.target.closest(".bubble");
-    if (bub) {
-      if (bub.classList.contains("open")) openAgent(bub.dataset.agent);
-      document.querySelectorAll(".bubble.open").forEach((b) => b !== bub && b.classList.remove("open"));
-      bub.classList.toggle("open");
-      return;
-    }
-    const el = e.target.closest(".agent, .desk");
-    if (el) return openAgent(el.dataset.agent);
-    document.querySelectorAll(".bubble.open").forEach((b) => b.classList.remove("open"));
-  });
-  document.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.classList?.contains("agent")) openAgent(e.target.dataset.agent); });
-
-  $("#cmd-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const text = $("#cmd-text").value.trim(), target = $("#cmd-target").value;
-    if (!text) return toast("Tulis perintahnya dulu.");
-    const token = ls.get(LS.admin);
-    if (!token) { toast("Isi admin token dulu di Pengaturan."); return openSettings(); }
-    $("#cmd-send").disabled = true;
-    try {
-      const r = await fetchJSON("/commands", { method: "POST", body: { target, text }, token });
-      upsertCommand(r.command); renderQueue();
-      $("#cmd-text").value = ""; toast("Perintah masuk antrean ✓");
-    } catch (err) {
-      if (err.status === 401) { toast("Admin token salah."); openSettings(); }
-      else toast("Gagal kirim: " + err.message);
-    } finally { $("#cmd-send").disabled = state.mode === "sim"; }
-  });
-
   function openSettings() {
     $("#set-admin").value = ls.get(LS.admin) || "";
     $("#set-api").value = ls.get(LS.api) || "";
@@ -388,7 +493,7 @@
     $("#settings").showModal();
   }
   $("#btn-settings").onclick = openSettings;
-  $("#conn").onclick = () => toast(state.mode === "live" ? "Tersambung live (SSE)." : state.mode === "polling" ? "Live stream putus — polling tiap 5 dtk." : state.mode === "cache" ? "Offline — data terakhir dari cache." : state.mode === "sim" ? "SIMULASI — bukan data asli." : "Menghubungkan…");
+  $("#conn").onclick = () => toast({ live: "Tersambung live (SSE).", polling: "Live stream putus — polling tiap 5 dtk.", cache: "Offline — menampilkan data terakhir.", sim: "SIMULASI — bukan data asli agent.", connecting: "Menghubungkan…" }[state.mode]);
   $("#set-save").onclick = () => {
     const tok = $("#set-admin").value.trim(), api = $("#set-api").value.trim(), demo = $("#set-demo").checked;
     tok ? ls.set(LS.admin, tok) : ls.del(LS.admin);
@@ -402,12 +507,10 @@
     toast("Cache dihapus."); setTimeout(() => location.reload(), 600);
   };
 
-  // install prompt
   let deferred = null;
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); deferred = e; $("#btn-install").hidden = false; });
   $("#btn-install").onclick = async () => { if (!deferred) return; deferred.prompt(); await deferred.userChoice; deferred = null; $("#btn-install").hidden = true; };
-  window.addEventListener("appinstalled", () => toast("BOLO HQ ter-install ✓"));
-
+  window.addEventListener("appinstalled", () => toast("Pusat Kendali Agent ter-install ✓"));
   window.addEventListener("online", () => connect());
   window.addEventListener("offline", () => { if (state.hasRealData) setMode("cache"); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && state.mode !== "live" && !FORCE_DEMO) connect(); });
@@ -415,13 +518,12 @@
   // ---------------------------------------------------------------- tick
   function tick() {
     const now = new Date(serverNow());
-    $("#clock-time").textContent = fmtWIB.format(now);
-    $("#clock-date").textContent = fmtDate.format(now) + " · WIB";
-    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jakarta", hour: "numeric", minute: "numeric", second: "numeric", hour12: false })
-      .formatToParts(now).map((p) => [p.type, +p.value]));
-    OfficeScene.setClock(parts.hour, parts.minute, parts.second);
+    const t = hms(now);
+    $("#clock").textContent = t + " WIB";
+    $("#dateLine").textContent = fLong.format(now);
+    OfficeScene.setClock(t.slice(0, 5), fShort.format(now).replace(/\./g, "").toUpperCase() + " · WIB");
     if (state.order.length) renderAgents();
-    if (state.mode !== "sim") $("#last-sync").textContent = state.lastSync ? `Sinkron terakhir: ${fmtFull.format(state.lastSync)} WIB (${ago(state.lastSync)})` : "Belum pernah sinkron";
+    renderLastSync();
   }
 
   // ---------------------------------------------------------------- boot

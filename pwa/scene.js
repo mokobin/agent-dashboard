@@ -1,299 +1,95 @@
-/* Isometric virtual office — pure SVG, no dependencies.
- * World units: room is 10 x 10 floor, walls 3.6 high. */
+/* Virtual office scene — ported from docs/prototype.html (pusat-kendali-agent).
+ * Static room SVG + one desk group per agent; agent state drives CSS classes. */
 (function () {
-  const T = 42, C = 0.8660254 * T, S = 0.5 * T, OX = 500, OY = 180, WALL = 3.6;
-  const NS = "http://www.w3.org/2000/svg";
+  "use strict";
+  const ROOM_SVG = "<svg viewBox=\"0 0 1200 660\" role=\"img\" aria-label=\"Ilustrasi kantor virtual malam hari dengan lima agent bekerja di meja masing-masing\">\n<defs>\n<linearGradient id=\"wallGrad\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n<stop offset=\"0\" stop-color=\"#131f38\"/><stop offset=\"1\" stop-color=\"#1b2a47\"/>\n</linearGradient>\n<linearGradient id=\"skyGrad\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n<stop offset=\"0\" stop-color=\"#0a1830\"/><stop offset=\"1\" stop-color=\"#274a7c\"/>\n</linearGradient>\n<linearGradient id=\"floorGrad\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n<stop offset=\"0\" stop-color=\"#8a6844\"/><stop offset=\"1\" stop-color=\"#6f5133\"/>\n</linearGradient>\n<radialGradient id=\"glowGrad\" cx=\".5\" cy=\".5\" r=\".5\">\n<stop offset=\"0\" stop-color=\"#ffd9a0\" stop-opacity=\".85\"/><stop offset=\"1\" stop-color=\"#ffd9a0\" stop-opacity=\"0\"/>\n</radialGradient>\n<linearGradient id=\"screenGrad\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n<stop offset=\"0\" stop-color=\"#12303a\"/><stop offset=\"1\" stop-color=\"#0b1e26\"/>\n</linearGradient>\n</defs>\n<!-- Wall -->\n<rect x=\"0\" y=\"0\" width=\"1200\" height=\"412\" fill=\"url(#wallGrad)\"/>\n<!-- Windows -->\n<g>\n<rect x=\"46\" y=\"52\" width=\"270\" height=\"212\" rx=\"10\" fill=\"url(#skyGrad)\" stroke=\"#2c3f61\" stroke-width=\"3\"/>\n<line x1=\"181\" y1=\"52\" x2=\"181\" y2=\"264\" stroke=\"#2c3f61\" stroke-width=\"4\"/>\n<line x1=\"46\" y1=\"158\" x2=\"316\" y2=\"158\" stroke=\"#2c3f61\" stroke-width=\"4\"/>\n<circle class=\"star\" cx=\"90\" cy=\"86\" r=\"2.2\" fill=\"#cfe4ff\"/><circle class=\"star\" cx=\"150\" cy=\"120\" r=\"1.6\" fill=\"#cfe4ff\" style=\"animation-delay:.7s\"/>\n<circle class=\"star\" cx=\"240\" cy=\"80\" r=\"2\" fill=\"#cfe4ff\" style=\"animation-delay:1.3s\"/><circle class=\"star\" cx=\"285\" cy=\"140\" r=\"1.5\" fill=\"#cfe4ff\" style=\"animation-delay:.4s\"/>\n<circle cx=\"272\" cy=\"88\" r=\"15\" fill=\"#e8eefc\"/><circle cx=\"266\" cy=\"83\" r=\"13\" fill=\"#0e1e3a\"/>\n<path d=\"M46 264 v-38 l26-12 v-16 l22 8 v20 l30-14 v52 Z M150 264 v-30 l24-10 v40 Z M214 264 v-44 l28 10 v34 Z\" fill=\"#0a1425\" opacity=\".85\"/>\n<rect x=\"66\" y=\"196\" width=\"5\" height=\"5\" fill=\"#ffd9a0\"/><rect x=\"104\" y=\"216\" width=\"5\" height=\"5\" fill=\"#ffd9a0\"/><rect x=\"238\" y=\"206\" width=\"5\" height=\"5\" fill=\"#ffd9a0\"/><rect x=\"168\" y=\"226\" width=\"5\" height=\"5\" fill=\"#ffd9a0\"/>\n</g>\n<g>\n<rect x=\"392\" y=\"52\" width=\"270\" height=\"212\" rx=\"10\" fill=\"url(#skyGrad)\" stroke=\"#2c3f61\" stroke-width=\"3\"/>\n<line x1=\"527\" y1=\"52\" x2=\"527\" y2=\"264\" stroke=\"#2c3f61\" stroke-width=\"4\"/>\n<line x1=\"392\" y1=\"158\" x2=\"662\" y2=\"158\" stroke=\"#2c3f61\" stroke-width=\"4\"/>\n<circle class=\"star\" cx=\"440\" cy=\"96\" r=\"1.8\" fill=\"#cfe4ff\" style=\"animation-delay:.9s\"/><circle class=\"star\" cx=\"590\" cy=\"76\" r=\"2.1\" fill=\"#cfe4ff\" style=\"animation-delay:.2s\"/>\n<circle class=\"star\" cx=\"622\" cy=\"128\" r=\"1.5\" fill=\"#cfe4ff\" style=\"animation-delay:1.6s\"/><circle class=\"star\" cx=\"486\" cy=\"132\" r=\"1.4\" fill=\"#cfe4ff\" style=\"animation-delay:2.1s\"/>\n<path d=\"M392 264 v-26 l30-12 v38 Z M470 264 v-48 l26 12 v-14 l24 10 v40 Z M560 264 v-34 l30-8 v42 Z\" fill=\"#0a1425\" opacity=\".85\"/>\n<rect x=\"416\" y=\"220\" width=\"5\" height=\"5\" fill=\"#ffd9a0\"/><rect x=\"492\" y=\"200\" width=\"5\" height=\"5\" fill=\"#ffd9a0\"/><rect x=\"600\" y=\"228\" width=\"5\" height=\"5\" fill=\"#ffd9a0\"/>\n</g>\n<!-- Kanban board -->\n<g>\n<rect x=\"716\" y=\"58\" width=\"212\" height=\"180\" rx=\"8\" fill=\"#22334f\" stroke=\"#31486e\" stroke-width=\"2\"/>\n<rect x=\"730\" y=\"74\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#f4b8c1\"/><rect x=\"794\" y=\"74\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#a7e8bd\"/>\n<rect x=\"858\" y=\"74\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#ffe08a\"/><rect x=\"730\" y=\"118\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#a5d8ff\"/>\n<rect x=\"794\" y=\"118\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#d0bfff\"/><rect x=\"858\" y=\"118\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#ffc9a3\"/>\n<rect x=\"730\" y=\"162\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#b2f2bb\"/><rect x=\"794\" y=\"162\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#ffd6a5\"/>\n<rect x=\"858\" y=\"162\" width=\"56\" height=\"34\" rx=\"3\" fill=\"#ffa8a8\"/>\n<text x=\"822\" y=\"226\" text-anchor=\"middle\" font-family=\"JetBrains Mono, monospace\" font-size=\"10\" fill=\"#7f93b5\" letter-spacing=\"2\">PIPELINE KERJA</text>\n</g>\n<!-- Wall screen / clock -->\n<g>\n<rect x=\"972\" y=\"52\" width=\"178\" height=\"238\" rx=\"10\" fill=\"#0a1322\" stroke=\"#2c3f61\" stroke-width=\"3\"/>\n<text id=\"wallClock\" x=\"1061\" y=\"152\" text-anchor=\"middle\" font-family=\"JetBrains Mono, monospace\" font-weight=\"700\" font-size=\"46\" fill=\"#7ee2fc\">--:--</text>\n<text id=\"wallDate\" x=\"1061\" y=\"182\" text-anchor=\"middle\" font-family=\"JetBrains Mono, monospace\" font-size=\"12\" fill=\"#5f7ca6\">WIB</text>\n<rect x=\"996\" y=\"208\" width=\"130\" height=\"7\" rx=\"3.5\" fill=\"#1d2f4d\"/>\n<rect x=\"996\" y=\"226\" width=\"96\" height=\"7\" rx=\"3.5\" fill=\"#1d2f4d\"/>\n<rect x=\"996\" y=\"244\" width=\"112\" height=\"7\" rx=\"3.5\" fill=\"#1d2f4d\"/>\n<circle cx=\"1003\" cy=\"76\" r=\"4\" fill=\"#4ade80\"/>\n</g>\n<!-- Wall clock deco -->\n<g opacity=\".9\"><circle cx=\"356\" cy=\"86\" r=\"17\" fill=\"none\" stroke=\"#5f7ca6\" stroke-width=\"3\"/><line x1=\"356\" y1=\"86\" x2=\"356\" y2=\"75\" stroke=\"#5f7ca6\" stroke-width=\"3\" stroke-linecap=\"round\"/><line x1=\"356\" y1=\"86\" x2=\"364\" y2=\"90\" stroke=\"#5f7ca6\" stroke-width=\"3\" stroke-linecap=\"round\"/></g>\n<!-- Floor -->\n<polygon points=\"0,660 1200,660 1200,412 0,412\" fill=\"url(#floorGrad)\"/>\n<g stroke=\"#5d422a\" stroke-width=\"2\" opacity=\".55\">\n<line x1=\"0\" y1=\"470\" x2=\"1200\" y2=\"470\"/><line x1=\"0\" y1=\"540\" x2=\"1200\" y2=\"540\"/><line x1=\"0\" y1=\"612\" x2=\"1200\" y2=\"612\"/>\n<line x1=\"200\" y1=\"412\" x2=\"140\" y2=\"660\"/><line x1=\"450\" y1=\"412\" x2=\"430\" y2=\"660\"/><line x1=\"700\" y1=\"412\" x2=\"720\" y2=\"660\"/><line x1=\"950\" y1=\"412\" x2=\"1010\" y2=\"660\"/>\n</g>\n<ellipse cx=\"430\" cy=\"580\" rx=\"330\" ry=\"52\" fill=\"#31456b\" opacity=\".5\"/>\n<ellipse cx=\"430\" cy=\"580\" rx=\"330\" ry=\"52\" fill=\"none\" stroke=\"#41598a\" stroke-width=\"2\" opacity=\".6\"/>\n<!-- Sofa lounge (left) -->\n<g>\n<rect x=\"36\" y=\"512\" width=\"128\" height=\"52\" rx=\"14\" fill=\"#3d4c63\"/>\n<rect x=\"28\" y=\"488\" width=\"144\" height=\"42\" rx=\"14\" fill=\"#46566f\"/>\n<rect x=\"40\" y=\"540\" width=\"46\" height=\"30\" rx=\"8\" fill=\"#37455c\"/><rect x=\"112\" y=\"540\" width=\"46\" height=\"30\" rx=\"8\" fill=\"#37455c\"/>\n<rect x=\"182\" y=\"540\" width=\"86\" height=\"10\" rx=\"4\" fill=\"#5d422a\"/>\n<rect x=\"192\" y=\"550\" width=\"8\" height=\"26\" fill=\"#4a3520\"/><rect x=\"250\" y=\"550\" width=\"8\" height=\"26\" fill=\"#4a3520\"/>\n<rect x=\"200\" y=\"522\" width=\"34\" height=\"20\" rx=\"3\" fill=\"#202c42\"/><rect x=\"204\" y=\"526\" width=\"26\" height=\"12\" fill=\"#3d5a80\"/>\n</g>\n<!-- Plant -->\n<g>\n<path d=\"M1108 640 l10-26 h44 l10 26 Z\" fill=\"#7a4a2b\"/>\n<path d=\"M1140 616 c-16-26-34-30-44-28 6 14 20 26 44 28Zm0 0c2-30 14-42 26-46 2 16-6 36-26 46Zm0 0c-4-24-16-34-28-36 2 14 12 30 28 36Z\" fill=\"#3f9e63\"/>\n</g>\n<g>\n<path d=\"M66 420 l7-20 h32 l7 20 Z\" fill=\"#7a4a2b\"/>\n<path d=\"M89 402 c-12-20-26-23-34-21 5 11 15 20 34 21Zm0 0c2-23 11-32 20-35 1 12-5 27-20 35Z\" fill=\"#3f9e63\"/>\n</g>\n<!-- Meeting room (front right) -->\n<g>\n<rect x=\"806\" y=\"452\" width=\"352\" height=\"196\" rx=\"10\" fill=\"#9fc3e8\" opacity=\".07\"/>\n<rect x=\"806\" y=\"452\" width=\"352\" height=\"196\" rx=\"10\" fill=\"none\" stroke=\"#9fc3e8\" stroke-width=\"2\" opacity=\".35\"/>\n<polygon points=\"852,586 1112,586 1136,622 828,622\" fill=\"#4a3520\"/>\n<polygon points=\"852,586 1112,586 1118,600 846,600\" fill=\"#5d422a\"/>\n<g fill=\"#232f45\">\n<rect x=\"862\" y=\"540\" width=\"34\" height=\"42\" rx=\"9\"/><rect x=\"928\" y=\"540\" width=\"34\" height=\"42\" rx=\"9\"/><rect x=\"994\" y=\"540\" width=\"34\" height=\"42\" rx=\"9\"/><rect x=\"1060\" y=\"540\" width=\"34\" height=\"42\" rx=\"9\"/>\n</g>\n<g fill=\"#1b2639\">\n<rect x=\"876\" y=\"618\" width=\"34\" height=\"40\" rx=\"9\"/><rect x=\"950\" y=\"618\" width=\"34\" height=\"40\" rx=\"9\"/><rect x=\"1024\" y=\"618\" width=\"34\" height=\"40\" rx=\"9\"/>\n</g>\n<text x=\"982\" y=\"478\" text-anchor=\"middle\" font-family=\"Manrope, sans-serif\" font-weight=\"700\" font-size=\"13\" fill=\"#9fc3e8\" opacity=\".8\">RUANG MEETING</text>\n</g>\n<g id=\"deskLayer\"></g>\n</svg>";
 
-  const iso = (x, y, z = 0) => [OX + (x - y) * C, OY + (x + y) * S - z * T];
-  const pts = (arr) => arr.map((p) => iso(...p).map((n) => n.toFixed(1)).join(",")).join(" ");
-  const poly = (arr, fill, extra = "") => `<polygon points="${pts(arr)}" fill="${fill}" ${extra}/>`;
-
-  // Affine transforms that let us draw "flat" on a plane using world units.
-  const M_FLOOR = `matrix(${C},${S},${-C},${S},${OX},${OY})`; // (x,y) on floor
-  const M_RWALL = `matrix(${C},${S},0,${T},${OX},${OY})`;     // (x, -z) on y=0 wall
-  const M_LWALL = `matrix(${-C},${S},0,${T},${OX},${OY})`;    // (y, -z) on x=0 wall
-
-  function box(x, y, z, w, d, h, top, left, right, extra = "") {
-    return (
-      poly([[x, y + d, z], [x + w, y + d, z], [x + w, y + d, z + h], [x, y + d, z + h]], left, extra) +
-      poly([[x + w, y, z], [x + w, y + d, z], [x + w, y + d, z + h], [x + w, y, z + h]], right, extra) +
-      poly([[x, y, z + h], [x + w, y, z + h], [x + w, y + d, z + h], [x, y + d, z + h]], top, extra)
-    );
-  }
-
-  // Character seat positions (cx, cy) — the person sits at cy, desk spans cy+0.5 .. cy+1.6
-  const DESKS = [
-    { cx: 1.4, cy: 5.6 },
-    { cx: 3.7, cy: 3.3 },
-    { cx: 6.0, cy: 1.0 },
-    { cx: 4.6, cy: 6.9 },
-    { cx: 7.1, cy: 4.4 },
+  // Desk slots (same layout as the prototype): transform + chip anchor (% of scene).
+  const SLOTS = [
+    { t: "translate(196,392)", chip: { left: 16.3, top: 30.5 } },
+    { t: "translate(492,392)", chip: { left: 41.0, top: 30.5 } },
+    { t: "translate(782,384) scale(.94)", chip: { left: 65.2, top: 30.0 } },
+    { t: "translate(292,556)", chip: { left: 24.3, top: 55.5 } },
+    { t: "translate(618,556)", chip: { left: 51.5, top: 55.5 } },
   ];
 
-  function room() {
-    let s = "";
-    // floor
-    s += `<g transform="${M_FLOOR}">`;
-    s += `<rect x="0" y="0" width="10" height="10" fill="#1b2340"/>`;
-    for (let i = 0; i < 10; i++)
-      for (let j = 0; j < 10; j++)
-        if ((i + j) % 2 === 0) s += `<rect x="${i}" y="${j}" width="1" height="1" fill="#1f2848"/>`;
-    for (let i = 1; i < 10; i++)
-      s += `<line x1="${i}" y1="0" x2="${i}" y2="10" stroke="#27315a" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".55"/>` +
-           `<line x1="0" y1="${i}" x2="10" y2="${i}" stroke="#27315a" stroke-width="1" vector-effect="non-scaling-stroke" opacity=".55"/>`;
-    // window light spill + rug
-    s += `<polygon points="0,2.6 0,7.4 3.4,8.4 3.4,1.6" fill="url(#spill)" opacity=".55"/>`;
-    s += `<rect x="0.35" y="8.25" width="2.6" height="1.45" rx="0.35" fill="#5b2a4a"/>`;
-    s += `<rect x="0.55" y="8.45" width="2.2" height="1.05" rx="0.25" fill="none" stroke="#c0789f" stroke-width="1.2" vector-effect="non-scaling-stroke" stroke-dasharray="4 3"/>`;
-    s += `</g>`;
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-    // walls
-    s += poly([[0, 0, 0], [0, 10, 0], [0, 10, WALL], [0, 0, WALL]], "#2a3360");
-    s += poly([[0, 0, 0], [10, 0, 0], [10, 0, WALL], [0, 0, WALL]], "#323d72");
-    // skirting
-    s += poly([[0, 0, 0], [0, 10, 0], [0, 10, 0.18], [0, 0, 0.18]], "#1a2146");
-    s += poly([[0, 0, 0], [10, 0, 0], [10, 0, 0.18], [0, 0, 0.18]], "#20295a");
-    // wall top edges
-    s += poly([[0, 0, WALL], [0, 10, WALL], [-0.15, 10, WALL], [-0.15, 0, WALL]], "#3d4a88");
-    s += poly([[0, 0, WALL], [10, 0, WALL], [10, -0.15, WALL], [0, -0.15, WALL]], "#4655a0");
-
-    // ---- left wall: window with night city
-    s += `<g transform="${M_LWALL}">`;
-    s += `<rect x="2.6" y="-3.15" width="4.8" height="2.0" fill="#0b1026" stroke="#6b7bd1" stroke-width="3" vector-effect="non-scaling-stroke"/>`;
-    s += `<rect x="2.6" y="-3.15" width="4.8" height="2.0" fill="url(#sky)"/>`;
-    s += `<circle cx="6.6" cy="-2.75" r="0.22" fill="#fef3c7"/><circle cx="6.68" cy="-2.8" r="0.2" fill="#121a3d" opacity=".9"/>`;
-    const stars = [[3.0, -3.0], [3.6, -2.85], [4.3, -3.05], [5.1, -2.9], [5.8, -3.02], [7.1, -2.95], [4.8, -2.7], [3.3, -2.6]];
-    stars.forEach(([x, y], i) => (s += `<circle class="twinkle" style="animation-delay:${i * 0.7}s" cx="${x}" cy="${y}" r="0.025" fill="#fff"/>`));
-    const bld = [[2.6, 0.55, 0.9], [3.15, 0.45, 1.3], [3.6, 0.6, 0.75], [4.2, 0.4, 1.55], [4.6, 0.7, 1.05], [5.3, 0.5, 1.4], [5.8, 0.55, 0.85], [6.35, 0.45, 1.2], [6.8, 0.6, 0.95]];
-    bld.forEach(([x, w, h], bi) => {
-      s += `<rect x="${x}" y="${-1.15 - h}" width="${w}" height="${h}" fill="${bi % 2 ? "#141b3f" : "#18204a"}"/>`;
-      for (let r = 0; r < Math.floor(h / 0.22); r++)
-        for (let c = 0; c < Math.floor(w / 0.15); c++) {
-          if ((bi * 7 + r * 3 + c * 5) % 4 === 0) continue;
-          const lit = (bi + r + c) % 3 === 0;
-          s += `<rect class="${lit ? "citylit" : ""}" style="animation-delay:${((bi * 13 + r * 7 + c * 3) % 17) * 0.6}s" x="${(x + 0.05 + c * 0.15).toFixed(2)}" y="${(-1.15 - h + 0.08 + r * 0.22).toFixed(2)}" width="0.07" height="0.1" fill="${lit ? "#fcd34d" : "#2b356b"}"/>`;
-        }
-    });
-    s += `<line x1="5" y1="-3.15" x2="5" y2="-1.15" stroke="#6b7bd1" stroke-width="3" vector-effect="non-scaling-stroke"/>`;
-    s += `<line x1="2.6" y1="-2.15" x2="7.4" y2="-2.15" stroke="#6b7bd1" stroke-width="2" vector-effect="non-scaling-stroke" opacity=".7"/>`;
-    s += `<rect x="2.45" y="-1.15" width="5.1" height="0.12" fill="#7d8be0"/>`;
-    s += `</g>`;
-
-    // ---- right wall: clock, sign, board
-    s += `<g transform="${M_RWALL}">`;
-    s += `<circle cx="2.1" cy="-2.65" r="0.52" fill="#f8fafc" stroke="#94a3b8" stroke-width="3" vector-effect="non-scaling-stroke"/>`;
-    for (let i = 0; i < 12; i++) {
-      const a = (i * Math.PI) / 6, r1 = i % 3 ? 0.42 : 0.36;
-      s += `<line x1="${2.1 + Math.sin(a) * r1}" y1="${-2.65 - Math.cos(a) * r1}" x2="${2.1 + Math.sin(a) * 0.47}" y2="${-2.65 - Math.cos(a) * 0.47}" stroke="#334155" stroke-width="${i % 3 ? 1 : 2}" vector-effect="non-scaling-stroke"/>`;
-    }
-    s += `<line id="clk-h" x1="2.1" y1="-2.65" x2="2.1" y2="-2.93" stroke="#0f172a" stroke-width="3.2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
-    s += `<line id="clk-m" x1="2.1" y1="-2.65" x2="2.1" y2="-3.05" stroke="#0f172a" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
-    s += `<line id="clk-s" x1="2.1" y1="-2.65" x2="2.1" y2="-3.08" stroke="#ef4444" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
-    s += `<circle cx="2.1" cy="-2.65" r="0.04" fill="#ef4444"/>`;
-    s += `<text x="2.1" y="-1.95" font-size="0.22" text-anchor="middle" fill="#c7d2fe" font-weight="700" letter-spacing="0.02">WIB</text>`;
-    // sign
-    s += `<rect x="3.6" y="-3.25" width="3.0" height="0.75" rx="0.12" fill="#111735" stroke="#7c3aed" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
-    s += `<text class="neon" x="5.1" y="-2.72" font-size="0.42" text-anchor="middle" fill="#c4b5fd" font-weight="800" letter-spacing="0.06">BOLO HQ</text>`;
-    // board with sticky notes
-    s += `<rect x="7.0" y="-3.0" width="2.3" height="1.5" fill="#e2e8f0" stroke="#64748b" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
-    [["#fde68a", 7.15, -2.85], ["#a7f3d0", 7.75, -2.8], ["#fbcfe8", 8.35, -2.88], ["#bfdbfe", 7.3, -2.2], ["#fde68a", 8.0, -2.25], ["#ddd6fe", 8.65, -2.15]].forEach(
-      ([c, x, y]) => (s += `<rect x="${x}" y="${y}" width="0.48" height="0.45" fill="${c}"/>`)
-    );
-    s += `<polyline points="7.2,-1.65 7.6,-1.9 8.0,-1.75 8.5,-2.05 9.1,-1.7" fill="none" stroke="#ef4444" stroke-width="1.5" vector-effect="non-scaling-stroke" opacity=".0"/>`;
-    s += `</g>`;
-    return s;
-  }
-
-  function plant(x, y) {
-    let s = box(x - 0.3, y - 0.3, 0, 0.6, 0.6, 0.55, "#b45309", "#92400e", "#78350f");
-    const [px, py] = iso(x, y, 0.55);
-    s += `<g class="sway" style="transform-origin:${px}px ${py}px">`;
-    [[-16, -40, "#16a34a"], [14, -44, "#22c55e"], [-4, -58, "#15803d"], [20, -26, "#16a34a"], [-22, -24, "#22c55e"]].forEach(
-      ([dx, dy, c]) => (s += `<ellipse cx="${px + dx * 0.6}" cy="${py + dy * 0.6}" rx="10" ry="20" fill="${c}" transform="rotate(${dx * 1.3} ${px + dx * 0.6} ${py + dy * 0.6})"/>`)
-    );
-    s += `</g>`;
-    return s;
-  }
-
-  function shelf(x, y) {
-    // bookshelf against left wall
-    let s = box(x, y, 0, 0.45, 1.6, 2.2, "#7c4a24", "#5b3418", "#6b3e1e");
-    const cols = ["#ef4444", "#3b82f6", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899", "#14b8a6"];
-    for (let r = 0; r < 4; r++) {
-      const z = 0.15 + r * 0.52;
-      for (let b = 0; b < 6; b++) {
-        if ((r * 5 + b) % 7 === 3) continue;
-        const yy = y + 0.12 + b * 0.24;
-        s += poly([[x + 0.45, yy, z], [x + 0.45, yy + 0.18, z], [x + 0.45, yy + 0.18, z + 0.38 + ((b + r) % 3) * 0.04], [x + 0.45, yy, z + 0.38 + ((b + r) % 3) * 0.04]], cols[(r * 3 + b) % cols.length]);
-      }
-      s += poly([[x + 0.45, y, z - 0.04], [x + 0.45, y + 1.6, z - 0.04], [x + 0.45, y + 1.6, z], [x + 0.45, y, z]], "#3f2410");
-    }
-    return s;
-  }
-
-  function cat(x, y) {
-    const [px, py] = iso(x, y, 0.02);
-    return `<g class="cat">
-      <ellipse cx="${px}" cy="${py + 4}" rx="30" ry="9" fill="#000" opacity=".25"/>
-      <path d="M${px + 22},${py - 2} q 22,-4 18,-20 q -2,-6 -6,-2 q 2,12 -14,14 z" fill="#f59e0b"/>
-      <ellipse class="breathe" cx="${px}" cy="${py - 6}" rx="26" ry="14" fill="#fb923c"/>
-      <path d="M${px - 14},${py - 14} q 6,-6 14,-2" stroke="#ea580c" stroke-width="3" fill="none"/>
-      <path d="M${px - 2},${py - 17} q 6,-5 12,0" stroke="#ea580c" stroke-width="3" fill="none"/>
-      <circle cx="${px - 22}" cy="${py - 8}" r="11" fill="#fb923c"/>
-      <polygon points="${px - 31},${py - 14} ${px - 29},${py - 25} ${px - 22},${py - 17}" fill="#fb923c"/>
-      <polygon points="${px - 20},${py - 18} ${px - 14},${py - 26} ${px - 12},${py - 14}" fill="#fb923c"/>
-      <path d="M${px - 28},${py - 8} q 3,2 6,0 M${px - 20},${py - 8} q 3,2 6,0" stroke="#7c2d12" stroke-width="1.6" fill="none"/>
-      <text class="zzz z1" x="${px - 16}" y="${py - 30}" fill="#c7d2fe" font-size="13" font-weight="700">z</text>
-      <text class="zzz z2" x="${px - 8}" y="${py - 42}" fill="#c7d2fe" font-size="16" font-weight="700">Z</text>
-      <text class="zzz z3" x="${px + 2}" y="${py - 56}" fill="#c7d2fe" font-size="19" font-weight="700">Z</text>
-    </g>`;
-  }
-
-  function coffee(x, y) {
-    let s = box(x - 0.35, y - 0.3, 0, 0.7, 0.6, 1.0, "#475569", "#334155", "#1e293b");
-    s += box(x - 0.18, y - 0.12, 1.0, 0.36, 0.3, 0.22, "#e2e8f0", "#cbd5e1", "#94a3b8");
-    const [px, py] = iso(x, y + 0.3, 0.55);
-    s += `<circle cx="${px}" cy="${py}" r="4" fill="#22c55e" class="blink"/>`;
-    return s;
-  }
-
-  function desk(i, a) {
-    const { cx, cy } = DESKS[i];
-    const dx = cx - 1.0, dy = cy + 0.5, W = 2.0, D = 1.1, H = 0.82;
-    const color = a.color || "#60a5fa";
-    let back = "", front = "";
-    // floor status ring (under chair)
-    const [rx, ry] = iso(cx, cy, 0);
-    back += `<ellipse class="ring" cx="${rx}" cy="${ry}" rx="36" ry="18" fill="none" stroke="currentColor" stroke-width="3"/>`;
-    back += `<ellipse cx="${rx}" cy="${ry}" rx="30" ry="15" fill="currentColor" opacity=".12"/>`;
-    // chair back + seat
-    back += box(cx - 0.32, cy - 0.42, 0.45, 0.64, 0.1, 0.8, "#475569", "#334155", "#1e293b");
-    back += box(cx - 0.34, cy - 0.34, 0.42, 0.68, 0.68, 0.08, "#64748b", "#475569", "#334155");
-    back += box(cx - 0.05, cy - 0.05, 0, 0.1, 0.1, 0.42, "#94a3b8", "#64748b", "#475569");
-
-    // person (screen-space drawing anchored at seat)
-    const [bx, by] = iso(cx, cy, 0.5);
-    back += `<g class="person">
-      <g class="bob">
-        <rect x="${bx - 15}" y="${by - 34}" width="30" height="36" rx="12" fill="${color}"/>
-        <rect x="${bx - 15}" y="${by - 34}" width="30" height="36" rx="12" fill="#000" opacity=".18"/>
-        <circle cx="${bx}" cy="${by - 48}" r="13" fill="#f2c9a0"/>
-        <path d="M${bx - 13.5},${by - 49} a13.5,13.5 0 0 1 27,0 q -6,-6 -13.5,-5 q -7,-1 -13.5,5 z" fill="${shade(color)}"/>
-        <g class="eyes"><circle cx="${bx - 4.5}" cy="${by - 46}" r="1.7" fill="#1e293b"/><circle cx="${bx + 4.5}" cy="${by - 46}" r="1.7" fill="#1e293b"/></g>
-        <path class="mouth" d="M${bx - 3},${by - 40} q 3,2 6,0" stroke="#9a3412" stroke-width="1.3" fill="none"/>
-        <rect class="headset" x="${bx - 15}" y="${by - 52}" width="4" height="9" rx="2" fill="#0f172a"/>
+  function deskSVG(a) {
+    const shirt = a.shirt || a.color || "#475569", skin = a.skin || "#c68642", hair = a.hair || "#1f1510", color = a.color || "#e8590c";
+    const lines = [0, 1, 2, 3].map((i) => {
+      const w = [52, 66, 40, 58][i], c = ["#4ade80", "#7ee2fc", "#fbbf24", "#4ade80"][i];
+      return `<rect class="code-line" x="4" y="${-44 + i * 11}" width="${w}" height="5" rx="2.5" fill="${c}" style="animation-delay:${i * 0.45}s"/>`;
+    }).join("");
+    return `<ellipse class="focusring" cx="0" cy="30" rx="126" ry="22" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="7 6"/>
+      <circle class="lampglow" cx="-74" cy="-76" r="46" fill="url(#glowGrad)"/>
+      <line x1="-74" y1="-30" x2="-74" y2="-82" stroke="#39445c" stroke-width="4" stroke-linecap="round"/>
+      <polygon points="-90,-82 -58,-82 -65,-99 -83,-99" fill="#f2c14e"/>
+      <rect x="-36" y="-106" width="72" height="70" rx="15" fill="#26334d"/>
+      <g class="char">
+        <rect x="-25" y="-106" width="50" height="56" rx="15" fill="${shirt}"/>
+        <line x1="20" y1="-84" x2="44" y2="-52" stroke="${shirt}" stroke-width="11" stroke-linecap="round"/>
+        <circle cx="0" cy="-126" r="17.5" fill="${skin}"/>
+        <path d="M-17.5 -128 a17.5 17.5 0 0 1 35 0 l0 -3 a17.5 12 0 0 0 -35 0 Z" fill="${hair}"/>
       </g>
-    </g>`;
-
-    // desk legs + top + drawer
-    front += box(dx + 0.05, dy + D - 0.12, 0, 0.07, 0.07, H, "#94a3b8", "#64748b", "#475569");
-    front += box(dx + 0.05, dy + 0.05, 0, 0.07, 0.07, H, "#94a3b8", "#64748b", "#475569");
-    front += box(dx + W - 0.62, dy + 0.06, 0, 0.56, D - 0.12, H, "#cbd5e1", "#94a3b8", "#64748b");
-    front += poly([[dx + W - 0.61, dy + D - 0.06, 0.5], [dx + W - 0.07, dy + D - 0.06, 0.5], [dx + W - 0.07, dy + D - 0.06, 0.53], [dx + W - 0.61, dy + D - 0.06, 0.53]], "#475569");
-    front += box(dx, dy, H, W, D, 0.08, "#e7d3b5", "#c9ad85", "#a88b62");
-
-    // laptop: keyboard near person, screen facing person (we see its back)
-    const kx = cx - 0.36, ky = dy + 0.08;
-    front += box(kx, ky, H + 0.08, 0.72, 0.42, 0.03, "#1f2937", "#111827", "#0b1220");
-    front += `<g class="laptop-open">` +
-      poly([[kx, ky + 0.45, H + 0.11], [kx + 0.72, ky + 0.45, H + 0.11], [kx + 0.72, ky + 0.52, H + 0.6], [kx, ky + 0.52, H + 0.6]], "#cbd5e1") +
-      poly([[kx + 0.72, ky + 0.45, H + 0.11], [kx + 0.72, ky + 0.47, H + 0.11], [kx + 0.72, ky + 0.54, H + 0.6], [kx + 0.72, ky + 0.52, H + 0.6]], "#94a3b8");
-    const [lx, ly] = iso(cx, ky + 0.49, H + 0.37);
-    front += `<circle cx="${lx}" cy="${ly}" r="4" fill="${color}" class="logo"/>`;
-    front += `<polygon class="glow" points="${pts([[kx - 0.05, ky + 0.44, H + 0.1], [kx + 0.77, ky + 0.44, H + 0.1], [kx + 0.8, ky + 0.53, H + 0.66], [kx - 0.08, ky + 0.53, H + 0.66]])}" fill="none" stroke="${color}" stroke-width="2"/>`;
-    front += `</g>`;
-    // code glyphs floating while typing
-    const [gx, gy] = iso(cx, ky + 0.5, H + 0.75);
-    front += `<g class="glyphs"><text x="${gx - 22}" y="${gy}" class="g g1">{ }</text><text x="${gx + 6}" y="${gy}" class="g g2">&lt;/&gt;</text><text x="${gx - 6}" y="${gy}" class="g g3">01</text></g>`;
-    // mug (steam when idle)
-    const mx = dx + W - 0.42, my = dy + 0.35;
-    front += box(mx, my, H + 0.08, 0.2, 0.2, 0.2, "#f8fafc", "#e2e8f0", "#cbd5e1");
-    const [sx, sy] = iso(mx + 0.1, my + 0.1, H + 0.3);
-    front += `<g class="steam"><path d="M${sx - 3},${sy} q -4,-7 0,-13 q 4,-6 0,-12" stroke="#cbd5e1" stroke-width="2" fill="none"/><path d="M${sx + 4},${sy - 2} q -4,-6 0,-11 q 4,-5 0,-10" stroke="#cbd5e1" stroke-width="2" fill="none"/></g>`;
-    // offline "zz" sign on desk
-    const [ox, oy] = iso(cx, dy + 0.6, H + 0.3);
-    front += `<g class="away"><rect x="${ox - 26}" y="${oy - 14}" width="52" height="18" rx="4" fill="#0f172a" stroke="#475569"/><text x="${ox}" y="${oy}" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="700">AWAY</text></g>`;
-
-    return {
-      depth: cx + cy,
-      svg: `<g class="desk status-offline" id="desk-${a.agent_id}" data-agent="${a.agent_id}" style="color:#64748b">${back}${front}</g>`,
-      head: iso(cx, cy, 0.5).map((n, k) => (k ? n - 66 : n)),
-      label: iso(dx + W / 2, dy + D, 0),
-    };
+      <polygon points="-106,-34 106,-34 88,-6 -88,-6" fill="#7d5636"/>
+      <polygon points="-88,-6 88,-6 88,17 -88,17" fill="#5d3f24"/>
+      <rect x="-82" y="17" width="9" height="20" fill="#4a3520"/><rect x="73" y="17" width="9" height="20" fill="#4a3520"/>
+      <g transform="translate(58,-40)">
+        <rect x="-8" y="-56" width="92" height="62" rx="7" fill="#10151f" stroke="#33415e" stroke-width="2"/>
+        <rect x="-2" y="-50" width="80" height="50" fill="url(#screenGrad)"/>${lines}
+        <rect x="28" y="6" width="9" height="13" fill="#33415e"/><rect x="12" y="19" width="42" height="5" rx="2.5" fill="#33415e"/>
+      </g>
+      <rect x="-46" y="-44" width="13" height="11" rx="2.5" fill="#e2e8f0"/>
+      <g class="mug-steam"><path d="M-42,-48 q -3,-6 0,-11 q 3,-5 0,-10" stroke="#cbd5e1" stroke-width="2" fill="none"/><path d="M-37,-49 q -3,-5 0,-9 q 3,-4 0,-8" stroke="#cbd5e1" stroke-width="2" fill="none"/></g>
+      <rect x="-78" y="-38" width="32" height="4.5" rx="2" fill="#dbe4f0" transform="rotate(-4 -62 -36)"/>
+      <circle cx="-96" cy="-40" r="4" fill="#3f9e63"/><circle cx="-90" cy="-47" r="4.5" fill="#35795a"/><circle cx="-101" cy="-48" r="3.5" fill="#3f9e63"/>
+      <g class="away"><rect x="-28" y="-30" width="56" height="20" rx="5" fill="#0f172a" stroke="#475569"/><text x="0" y="-15.5" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#94a3b8">AWAY</text></g>`;
   }
 
-  function shade(hex) {
-    const n = parseInt(hex.slice(1), 16);
-    const r = Math.max(0, (n >> 16) - 70), g = Math.max(0, ((n >> 8) & 255) - 70), b = Math.max(0, (n & 255) - 70);
-    return `rgb(${r},${g},${b})`;
-  }
-
-  const VB = { x: 100, y: 20, w: 800, h: 600 };
-
-  function build(container, agents) {
-    const objects = [];
-    agents.forEach((a, idx) => objects.push(desk(a.desk ?? idx, a)));
-    const props = [
-      { depth: 9.2 + 0.7, svg: plant(9.2, 0.7) },
-      { depth: 0.9 + 0.3, svg: shelf(0.05, 0.25) },
-      { depth: 0.45 + 7.75, svg: plant(0.45, 7.75) },
-      { depth: 1.65 + 9.0, svg: cat(1.65, 9.0) },
-      { depth: 9.2 + 2.6, svg: coffee(9.2, 2.6) },
-    ];
-    const all = objects.concat(props).sort((p, q) => p.depth - q.depth);
-    const svg = `<svg viewBox="${VB.x} ${VB.y} ${VB.w} ${VB.h}" xmlns="${NS}" role="img" aria-label="Kantor virtual agent">
-      <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b1030"/><stop offset="1" stop-color="#3b2a6b"/></linearGradient>
-        <linearGradient id="spill" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b9cff" stop-opacity=".35"/><stop offset="1" stop-color="#8b9cff" stop-opacity="0"/></linearGradient>
-        <radialGradient id="vign" cx=".5" cy=".55" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
-      </defs>
-      ${room()}
-      ${all.map((o) => o.svg).join("")}
-      <rect x="${VB.x}" y="${VB.y}" width="${VB.w}" height="${VB.h}" fill="url(#vign)" pointer-events="none"/>
-    </svg>`;
-    container.querySelector(".scene-svg").innerHTML = svg;
-
-    // HTML overlays (bubbles + labels), positioned in % of viewBox
-    const ov = container.querySelector(".scene-overlay");
-    ov.innerHTML = "";
-    objects.forEach((o, k) => {
-      const a = agents[k];
-      const pct = ([x, y]) => [((x - VB.x) / VB.w) * 100, ((y - VB.y) / VB.h) * 100];
-      const [hx, hy] = pct(o.head);
-      ov.insertAdjacentHTML("beforeend",
-        `<button class="bubble" id="bub-${a.agent_id}" data-agent="${a.agent_id}" style="left:${hx}%;top:${hy}%">
-           <span class="b-head"><i class="dot"></i><b>${esc(a.name)}</b><em class="plat">${(a.platform || "").toUpperCase()}</em></span>
-           <span class="b-task">…</span>
-         </button>`);
+  function build(sceneWrap, agents, onSelect) {
+    sceneWrap.querySelector("#sceneSvg").innerHTML = ROOM_SVG;
+    const layer = sceneWrap.querySelector("#deskLayer");
+    const chips = sceneWrap.querySelector("#chipLayer");
+    layer.innerHTML = ""; chips.innerHTML = "";
+    // back row first so the front row paints over it
+    const placed = agents.map((a, i) => ({ a, slot: SLOTS[(a.desk ?? i) % SLOTS.length] }));
+    placed.sort((p, q) => p.slot.chip.top - q.slot.chip.top);
+    placed.forEach(({ a, slot }) => {
+      layer.insertAdjacentHTML("beforeend", `<g class="scene-agent offline" id="scene-${esc(a.agent_id)}" data-agent="${esc(a.agent_id)}" transform="${slot.t}">${deskSVG(a)}</g>`);
+      const el = document.createElement("button");
+      el.type = "button"; el.className = "chip"; el.id = "chip-" + a.agent_id; el.dataset.agent = a.agent_id;
+      el.style.left = slot.chip.left + "%"; el.style.top = slot.chip.top + "%";
+      el.setAttribute("data-status", "offline");
+      el.innerHTML = `<span class="dot"></span><span>${esc(a.name)}</span><span class="st">Offline</span>`;
+      chips.appendChild(el);
     });
+    layer.querySelectorAll(".scene-agent").forEach((g) => g.addEventListener("click", () => onSelect(g.dataset.agent)));
+    chips.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => onSelect(c.dataset.agent)));
   }
 
-  function esc(s) {
-    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const ST_LABEL = { working: "Bekerja", idle: "Idle", offline: "Offline" };
+
+  function update(a, selected) {
+    const g = document.getElementById("scene-" + a.agent_id), c = document.getElementById("chip-" + a.agent_id);
+    if (g) g.setAttribute("class", `scene-agent ${a.status}${selected ? " selected" : ""}`);
+    if (c) {
+      c.setAttribute("data-status", a.status);
+      c.classList.toggle("selected", !!selected);
+      c.querySelector(".st").textContent = ST_LABEL[a.status] || a.status;
+    }
   }
 
-  const STATUS_COLOR = { working: "#22c55e", idle: "#f59e0b", offline: "#64748b" };
-
-  function update(a, taskText) {
-    const d = document.getElementById("desk-" + a.agent_id);
-    const b = document.getElementById("bub-" + a.agent_id);
-    if (!d || !b) return;
-    const st = a.status || "offline";
-    d.setAttribute("class", "desk status-" + st);
-    d.style.color = STATUS_COLOR[st];
-    b.className = "bubble status-" + st + (b.classList.contains("open") ? " open" : "");
-    b.querySelector(".b-task").textContent = taskText;
+  function chipPos(agentId) {
+    const c = document.getElementById("chip-" + agentId);
+    return c ? { left: parseFloat(c.style.left), top: parseFloat(c.style.top) } : { left: 50, top: 50 };
   }
 
-  function setClock(h, m, s) {
-    const rot = (id, deg) => {
-      const el = document.getElementById(id);
-      if (el) el.setAttribute("transform", `rotate(${deg} 2.1 -2.65)`);
-    };
-    rot("clk-h", (h % 12) * 30 + m * 0.5);
-    rot("clk-m", m * 6 + s * 0.1);
-    rot("clk-s", s * 6);
+  function setClock(hhmm, dateLine) {
+    const wc = document.getElementById("wallClock"), wd = document.getElementById("wallDate");
+    if (wc) wc.textContent = hhmm;
+    if (wd) wd.textContent = dateLine;
   }
 
-  window.OfficeScene = { build, update, setClock, esc };
+  window.OfficeScene = { build, update, chipPos, setClock, esc };
 })();

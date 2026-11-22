@@ -3,109 +3,127 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>BOLO HQ — Pusat Kendali Agent</title>
-  <meta name="description" content="Kantor virtual isometrik: status live lima agent BOLO (Hermes + Muse).">
-  <meta name="theme-color" content="#0b1024">
+  <meta name="color-scheme" content="light dark">
+  <title>Pusat Kendali Agent — BOLO HQ</title>
+  <meta name="description" content="Kantor virtual: status live agent Hermes &amp; Muse dalam satu ruangan.">
+  <meta name="theme-color" content="#e9edf4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#070c16" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="BOLO HQ">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <img src="/icons/icon-192.png" alt="" width="34" height="34">
+  <div class="wrap">
+
+    <!-- ======================= TOP BAR ======================= -->
+    <header class="topbar">
       <div>
-        <h1>BOLO HQ</h1>
-        <p>Pusat Kendali Agent</p>
+        <h1>Pusat Kendali Agent<button class="live-pill mode-connecting" id="conn" type="button" title="Status koneksi"><span class="live-dot"></span><span id="conn-label">MENGHUBUNGKAN</span></button></h1>
+        <div class="sub">Satu akses untuk semua agent Mas Rudy — Hermes &amp; Muse dalam satu ruangan virtual.</div>
       </div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="statOnline">–/5</div><div class="k">Agent Aktif</div></div>
+        <div class="stat"><div class="v" id="statRunning">–</div><div class="k">Tugas Berjalan</div></div>
+        <div class="stat"><div class="v" id="statDone">–</div><div class="k">Selesai Hari Ini</div></div>
+        <div class="clockbox">
+          <div class="t" id="clock">--:--:--</div>
+          <div class="d" id="dateLine">Memuat waktu…</div>
+        </div>
+        <div class="tools">
+          <button id="btn-install" class="icon-btn" type="button" hidden title="Install aplikasi" aria-label="Install aplikasi">⤓</button>
+          <button id="btn-settings" class="icon-btn" type="button" title="Pengaturan" aria-label="Pengaturan">⚙</button>
+        </div>
+      </div>
+    </header>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <div class="layout">
+      <!-- ======================= VIRTUAL OFFICE ======================= -->
+      <section class="panel" aria-label="Kantor virtual">
+        <div class="panel-head">
+          <h2>Kantor Virtual</h2>
+          <span class="tag">Klik agent di ruangan atau di daftar untuk mengendalikan</span>
+        </div>
+        <div class="scene-wrap" id="sceneWrap">
+          <div id="sceneSvg"></div>
+          <div id="chipLayer"></div>
+          <div class="bubble" id="bubble" hidden>
+            <span class="b-name" id="bubbleName"></span>
+            <span id="bubbleText"></span><span class="tdots" id="bubbleDots"><i></i><i></i><i></i></span>
+          </div>
+          <div class="sim-mark" id="simMark" hidden>SIMULASI</div>
+        </div>
+      </section>
+
+      <!-- ======================= CONTROL PANEL ======================= -->
+      <aside class="panel" aria-label="Panel kendali agent">
+        <div class="panel-head">
+          <h2>Kendali Agent</h2>
+          <span class="tag" id="ctrlTag">Memuat…</span>
+        </div>
+        <div id="agentList"></div>
+        <div class="detail" id="detailCard"></div>
+      </aside>
     </div>
-    <div class="top-right">
-      <div class="clock" aria-label="Jam WIB"><b id="clock-time">--:--:--</b><span id="clock-date">WIB</span></div>
-      <button id="conn" class="conn mode-connecting" title="Status koneksi">
-        <i></i><span id="conn-label">MENGHUBUNGKAN</span>
-      </button>
-      <button id="btn-install" class="icon-btn" hidden title="Install aplikasi">⤓</button>
-      <button id="btn-settings" class="icon-btn" title="Pengaturan">⚙</button>
+
+    <div class="bottom">
+      <!-- ======================= COMMAND CENTER ======================= -->
+      <section class="panel" aria-label="Pusat perintah" id="panel-command">
+        <div class="panel-head">
+          <h2>Pusat Perintah</h2>
+          <span class="tag" id="cmdTag">Perintah masuk antrean agent</span>
+        </div>
+        <div class="cmd-body">
+          <form class="cmd-flex" id="cmdForm" autocomplete="off">
+            <select id="cmdTarget" aria-label="Pilih agent tujuan"></select>
+            <input type="text" id="cmdText" maxlength="1000" placeholder="Tulis perintah… mis. Cek semua wallet yang belum klaim">
+            <button type="submit" class="btn primary" id="cmdSend">Kirim Perintah</button>
+          </form>
+          <div class="quick" id="quickCmds"></div>
+          <ul class="queue" id="queueList"></ul>
+          <div class="queue-empty" id="queueEmpty">Antrean kosong — perintah yang dikirim akan muncul di sini.</div>
+        </div>
+      </section>
+
+      <!-- ======================= LIVE FEED ======================= -->
+      <section class="panel" aria-label="Aktivitas ruangan">
+        <div class="panel-head">
+          <h2>Aktivitas Ruangan</h2>
+          <span class="tag" id="feedTag">Dari heartbeat asli tiap agent</span>
+        </div>
+        <ul class="feed" id="feed"></ul>
+      </section>
     </div>
-  </header>
 
-  <div id="banner" class="banner" hidden></div>
-
-  <main class="layout">
-    <section class="card scene-card">
-      <div class="scene-scroll" id="scene-scroll">
-      <div class="scene" id="scene">
-        <div class="scene-svg"></div>
-        <div class="scene-overlay"></div>
-        <div class="sim-watermark" hidden>SIMULASI</div>
-      </div>
-      </div>
-      <div class="scene-foot">
-        <div class="stats" id="stats"></div>
-        <div class="legend">
-          <span><i class="dot s-working"></i>Bekerja</span>
-          <span><i class="dot s-idle"></i>Idle</span>
-          <span><i class="dot s-offline"></i>Offline</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="card panel" id="panel-agents">
-      <h2>Panel Kendali Agent</h2>
-      <div id="agent-groups"></div>
-    </section>
-
-    <section class="card panel" id="panel-command">
-      <h2>Pusat Perintah</h2>
-      <form id="cmd-form" autocomplete="off">
-        <div class="row">
-          <select id="cmd-target" aria-label="Target perintah"></select>
-        </div>
-        <textarea id="cmd-text" rows="2" maxlength="1000" placeholder="Tulis perintah… (mis. ‘Cek airdrop baru dan laporkan’)"></textarea>
-        <div class="row between">
-          <small id="cmd-hint" class="muted">Perintah masuk antrean. Eksekusi oleh agent = fase berikutnya.</small>
-          <button class="btn" type="submit" id="cmd-send">Kirim</button>
-        </div>
-      </form>
-      <h3>Antrean Tugas</h3>
-      <ul id="queue" class="list"></ul>
-    </section>
-
-    <section class="card panel" id="panel-feed">
-      <h2>Feed Aktivitas</h2>
-      <ul id="feed" class="list feed"></ul>
-    </section>
-  </main>
-
-  <footer class="foot">
-    <span id="last-sync" class="muted">—</span>
-    <span class="muted">boloku.web.id · v<span id="ver">1.0.0</span></span>
-  </footer>
-
-  <!-- agent detail sheet -->
-  <dialog id="sheet" class="sheet">
-    <form method="dialog"><button class="close" aria-label="Tutup">✕</button></form>
-    <div id="sheet-body"></div>
-  </dialog>
+    <footer class="note">
+      Pusat Kendali Agent — Hermes (Bolo_airdrop · Bolongonten · Hunter-2) &amp; Muse (Mas Wowo · Mas Wiwi) dalam satu ruangan, satu kendali.<br>
+      <span id="footNote">Status di halaman ini berasal dari heartbeat asli tiap agent lewat Sync API.</span>
+      <span class="mono" id="lastSync"></span>
+    </footer>
+  </div>
 
   <!-- settings -->
   <dialog id="settings" class="sheet">
     <form method="dialog"><button class="close" aria-label="Tutup">✕</button></form>
     <h2>Pengaturan</h2>
     <label>Admin token (untuk Pusat Perintah)
-      <input id="set-admin" type="password" placeholder="disimpan hanya di perangkat ini">
+      <input id="set-admin" type="password" autocomplete="off" placeholder="disimpan hanya di perangkat ini">
     </label>
     <label>API base (kosongkan untuk default <code>/api/v1</code>)
       <input id="set-api" type="text" placeholder="/api/v1">
     </label>
     <label class="check"><input id="set-demo" type="checkbox"> Mode demo (SIMULASI) — paksa data simulasi</label>
-    <div class="row between">
-      <button class="btn ghost" id="set-clear" type="button">Hapus cache lokal</button>
-      <button class="btn" id="set-save" type="button">Simpan</button>
+    <div class="btn-row between">
+      <button class="btn" id="set-clear" type="button">Hapus cache lokal</button>
+      <button class="btn primary" id="set-save" type="button">Simpan</button>
     </div>
   </dialog>
 

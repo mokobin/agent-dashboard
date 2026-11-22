@@ -1,10 +1,11 @@
 # BOLO HQ — Agent Dashboard PWA (`boloku.web.id`)
 
-Kantor virtual isometrik yang menampilkan status **asli** lima agent:
-Bolo_airdrop, Bolongonten, Hunter-2 / Nanika (Hermes) dan Mas Wowo, Mas Wiwi (Muse).
-Tiap agent duduk di mejanya; bubble di atas kepala menunjukkan tugas yang sedang
-dikerjakan, mengetik saat `working`, kopi mengepul saat `idle`, kursi kosong + papan
-AWAY saat `offline`. Jam dinding mengikuti WIB, ada kucing tidur dan jendela kota malam.
+Pusat Kendali Agent: kantor virtual (porting dari prototype `docs/prototype.html`) yang
+menampilkan status **asli** lima agent: Bolo_airdrop, Bolongonten, Hunter-2 / Nanika (Hermes)
+dan Mas Wowo, Mas Wiwi (Muse). Tiap agent duduk di mejanya dengan chip nama + status;
+bubble menampilkan tugas agent terpilih. `working` = mengetik + kode berjalan di monitor,
+`idle` = diam + kopi mengepul, `offline` = kursi kosong + papan AWAY. Layar dinding
+menampilkan jam WIB; ada jendela kota malam, papan pipeline kerja, lounge, dan ruang meeting.
 
 ```
 [Agent Hermes di VPS] --POST heartbeat--> [Sync API :8787] <--GET/SSE-- [PWA boloku.web.id]
@@ -13,7 +14,7 @@ AWAY saat `offline`. Jam dinding mengikuti WIB, ada kucing tidur dan jendela kot
 
 | Folder | Isi |
 |---|---|
-| `pwa/` | Front-end (HTML/CSS/JS murni, tanpa build), `manifest.json`, `sw.js`, ikon. ±150 KB total |
+| `pwa/` | Front-end (HTML/CSS/JS murni, tanpa build), `manifest.json`, `sw.js`, ikon. ±130 KB total |
 | `server/` | Sync API Python **stdlib-only** + SQLite (WAL), `agents.json`, `gen-tokens.py`, tes |
 | `reporter/` | `report-status.sh`, `with-status.sh`, `keepalive.sh`, `bolo_report.py`, `MUSE-REPORTING.md` |
 | `deploy/` | nginx server block, unit systemd, `install.sh`, `write-agent-token.sh`, `TUNNEL.md` |
@@ -28,7 +29,9 @@ AWAY saat `offline`. Jam dinding mengikuti WIB, ada kucing tidur dan jendela kot
 - **Offline detection di dua sisi**: server (watchdog → event + feed "tidak ada heartbeat >60 dtk") dan klien (hitung ulang tiap detik dengan koreksi selisih jam server).
 - **Panel Kendali** per platform (HERMES/MUSE): status, tugas, progress bar, timer sesi tugas, "dilihat x lalu". Ketuk agent/meja/bubble → detail lengkap.
 - **Pusat Perintah**: kirim ke satu agent atau semua → antrean + feed (pakai admin token, disimpan di perangkat). Agent bisa membaca & `ack` perintah (groundwork fase berikut).
-- Installable (manifest + ikon maskable + tombol install), responsif (scene bisa digeser di HP), `prefers-reduced-motion` dihormati.
+- Kartu detail agent: tugas saat ini, progres, timer sesi, jumlah tugas selesai hari ini, heartbeat terakhir; tombol **Jeda / Selesaikan Tugas / Beri Perintah** (dua yang pertama masuk antrean sebagai perintah ke agent itu) + 5 perintah cepat.
+- Header: Agent Aktif, Tugas Berjalan, Selesai Hari Ini (dihitung server dari transisi working → idle), jam WIB.
+- Installable (manifest + ikon maskable + tombol install), tema terang/gelap mengikuti sistem, font Manrope/JetBrains Mono di-cache SW untuk offline, `prefers-reduced-motion` dihormati.
 
 ## Kontrak API (`/api/v1`)
 
