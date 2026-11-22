@@ -333,3 +333,59 @@ footer.note .mono { display: block; margin-top: 4px; font-size: .7rem; }
   background: var(--ink); color: var(--surface); padding: 10px 16px; border-radius: 12px; font-size: .82rem; font-weight: 700; z-index: 50; pointer-events: none; max-width: 90vw; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 @media (max-width: 640px) { .tools { margin-left: auto; } .icon-btn { width: 34px; height: 34px; } }
+
+/* ===================== Isometric dollhouse + day → night cycle (scene only; page theme unchanged) ===================== */
+/* Defaults = daylight, so the scene is right before JS runs and under reduced motion. */
+.scene-wrap { --tod: .2; --day: 1; --gold: 0; --dusk: 0; --night: 0; --lamp: 0; --glow: .3; --wallday: 1; background: #24272d; }
+.scene-agent { cursor: pointer; }
+.scene-agent .char { animation: none; }
+.scene-agent .screen-on { transition: opacity .6s ease; }
+.scene-agent.offline .screen-on { opacity: 0; }
+.scene-agent.offline .laptop { opacity: 0; }
+
+/* typing: small, calm hand taps + a slow breath; no bounce */
+.scene-agent .hand-l, .scene-agent .hand-r { transform-box: fill-box; transform-origin: center; }
+.scene-agent.working .hand-l { animation: tap .34s ease-in-out infinite alternate; }
+.scene-agent.working .hand-r { animation: tap .34s ease-in-out infinite alternate-reverse; }
+@keyframes tap { from { transform: translateY(0); } to { transform: translateY(-2.2px); } }
+.scene-agent.working .char, .scene-agent.idle .char { animation: breathe 4.2s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes breathe { 50% { transform: translateY(-1.2px); } }
+
+/* faces: desk agents are seen from behind; the face layer only shows during the look-up beat */
+.scene-agent .head-face { opacity: 0; }
+.scene-agent .head-back, .scene-agent .head-face, .scene-agent .bb-head { transform-box: fill-box; transform-origin: 50% 100%; }
+.scene-agent.selected:not(.offline) .head-back { animation: lookBack 10s cubic-bezier(.45,.05,.55,.95) infinite; }
+.scene-agent.selected:not(.offline) .head-face { animation: lookFace 10s cubic-bezier(.45,.05,.55,.95) infinite; }
+@keyframes lookBack {
+  0%, 60% { opacity: 1; transform: translate(0, 0); }
+  65%, 76% { opacity: 0; transform: translate(2px, -4px); }
+  81%, 100% { opacity: 1; transform: translate(0, 0); }
+}
+@keyframes lookFace {
+  0%, 60% { opacity: 0; transform: translate(0, 0); }
+  65%, 76% { opacity: 1; transform: translate(2px, -4px); }
+  81%, 100% { opacity: 0; transform: translate(0, 0); }
+}
+/* beanbag: looks down at the laptop while typing; once per loop lifts the head and looks at the viewer */
+.scene-agent.kind-B .eyes-open { opacity: 0; }
+.scene-agent.kind-B.idle .eyes-open { opacity: 1; } .scene-agent.kind-B.idle .eyes-down { opacity: 0; }
+.scene-agent.kind-B.working .bb-head { animation: bbLift 10s cubic-bezier(.45,.05,.55,.95) infinite; }
+.scene-agent.kind-B.working .eyes-open { animation: bbEyesUp 10s cubic-bezier(.45,.05,.55,.95) infinite; }
+.scene-agent.kind-B.working .eyes-down { animation: bbEyesDown 10s cubic-bezier(.45,.05,.55,.95) infinite; }
+@keyframes bbLift { 0%, 60% { transform: translateY(3px) rotate(4deg); } 66%, 76% { transform: translateY(-2px) rotate(0deg); } 82%, 100% { transform: translateY(3px) rotate(4deg); } }
+@keyframes bbEyesUp { 0%, 62% { opacity: 0; } 66%, 76% { opacity: 1; } 80%, 100% { opacity: 0; } }
+@keyframes bbEyesDown { 0%, 62% { opacity: 1; } 66%, 76% { opacity: 0; } 80%, 100% { opacity: 1; } }
+
+/* desk light follows live status: offline = lamp + screen off, idle = dimmer screen */
+.desk-light { transition: opacity .6s ease; }
+.desk-light.offline { opacity: 0; }
+.desk-light.idle .screen-light ellipse { opacity: .45; }
+.sway { animation: sway 7s ease-in-out infinite; }
+@keyframes sway { 50% { transform: rotate(1.2deg); } }
+.citylit { animation: citylit 7s steps(1) infinite; }
+@keyframes citylit { 0%, 72% { opacity: 1; } 73%, 100% { opacity: .2; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-agent .head-back, .scene-agent .head-face, .scene-agent .bb-head, .scene-agent .eyes-open, .scene-agent .eyes-down,
+  .scene-agent .hand-l, .scene-agent .hand-r, .scene-agent .char, .sway, .citylit { animation: none !important; }
+}
