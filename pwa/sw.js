@@ -1,5 +1,5 @@
 /* BOLO HQ service worker — app shell cache + last status snapshot. */
-const VERSION = "bolo-hq-v2.0.0";
+const VERSION = "bolo-hq-v2.1.0";
 const FONT_CACHE = "bolo-hq-fonts";
 const SHELL = `${VERSION}-shell`;
 const API_CACHE = `${VERSION}-api`;
