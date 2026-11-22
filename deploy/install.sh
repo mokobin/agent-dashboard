@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # BOLO HQ — idempotent installer for the VPS (Ubuntu/Debian/Oracle Linux, nginx already running).
 # Run from the repo root as root:   sudo bash deploy/install.sh
+# Python: the Sync API needs >= 3.9 (system python3 on the BOLO VPS is only 3.6.8).
+# The installer looks for python3.11 first, then 3.12, 3.13, 3.10, 3.9, python3 — on PATH and in
+# /usr/bin + /usr/local/bin (sudo's PATH may hide the latter) — and uses that SAME interpreter
+# for the version check, gen-tokens and the systemd ExecStart.
+# Override:   sudo BOLO_PYTHON=/usr/bin/python3.11 bash deploy/install.sh
 #
 # What it does (and nothing else):
 #   - user `boloku`, dirs /opt/boloku (code), /var/lib/boloku (SQLite), /etc/boloku (secrets)
@@ -16,9 +21,24 @@ say() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mxx\033[0m %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "run as root (sudo)"
-command -v python3 >/dev/null || die "python3 missing"
 command -v nginx   >/dev/null || die "nginx missing"
-python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)' || die "python3 >= 3.9 required"
+
+py_ok() { [[ -x "$1" ]] && "$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)' 2>/dev/null; }
+PY="${BOLO_PYTHON:-}"
+if [[ -n "$PY" ]]; then
+  py_ok "$PY" || die "BOLO_PYTHON=$PY is not an executable python >= 3.9"
+else
+  # python3.11 first (what runs on the BOLO VPS today), then any other >= 3.9
+  for c in python3.11 python3.12 python3.13 python3.10 python3.9 python3; do
+    for p in "$(command -v "$c" 2>/dev/null)" ${BOLO_PY_DIRS:-/usr/bin /usr/local/bin}; do
+      [[ -n "$p" && -d "$p" ]] && p="$p/$c"
+      if [[ -n "$p" ]] && py_ok "$p"; then PY="$p"; break 2; fi
+    done
+  done
+  [[ -n "$PY" ]] || die "no python >= 3.9 found (system python3 is $(python3 -V 2>&1 || echo missing)); install python3.11 or set BOLO_PYTHON=/path/to/python3.x"
+fi
+[[ "$PY" == /* ]] || PY="$(command -v "$PY")"
+say "python for Sync API: $PY ($("$PY" -V 2>&1))"
 
 FREE_MB=$(df -Pm / | awk 'NR==2{print $4}')
 say "disk free on /: ${FREE_MB} MB (need ~5 MB)"
@@ -41,14 +61,17 @@ chown -R root:root "$PREFIX"; chmod -R a+rX "$PREFIX"
 
 if [[ ! -f "$ETC/sync.env" ]]; then
   say "generating tokens -> $ETC/sync.env (shown ONCE below, store them safely)"
-  python3 "$PREFIX/server/gen-tokens.py" "$ETC/sync.env"
+  "$PY" "$PREFIX/server/gen-tokens.py" "$ETC/sync.env"
 else
-  say "keeping existing $ETC/sync.env (rotate: python3 $PREFIX/server/gen-tokens.py $ETC/sync.env --force)"
+  say "keeping existing $ETC/sync.env (rotate: $PY $PREFIX/server/gen-tokens.py $ETC/sync.env --force)"
 fi
 chown root:boloku "$ETC/sync.env"; chmod 640 "$ETC/sync.env"
 
 say "systemd unit"
-install -m 644 "$REPO/deploy/systemd/bolo-sync.service" /etc/systemd/system/bolo-sync.service
+# ExecStart always uses the interpreter that passed the version check above
+sed "s#^ExecStart=.*#ExecStart=$PY -u /opt/boloku/server/app.py#" "$REPO/deploy/systemd/bolo-sync.service" > /etc/systemd/system/bolo-sync.service
+chmod 644 /etc/systemd/system/bolo-sync.service
+grep -q "^ExecStart=$PY " /etc/systemd/system/bolo-sync.service || die "failed to set ExecStart to $PY"
 install -m 644 "$REPO/deploy/systemd/bolo-keepalive@.service" /etc/systemd/system/bolo-keepalive@.service
 systemctl daemon-reload
 systemctl enable bolo-sync.service >/dev/null
@@ -71,6 +94,7 @@ curl -fsS http://127.0.0.1:8787/api/v1/health && echo
 curl -fsS -H 'Host: boloku.web.id' http://127.0.0.1/api/v1/health >/dev/null && say "nginx -> API ok"
 curl -fsS -H 'Host: boloku.web.id' http://127.0.0.1/manifest.json >/dev/null && say "nginx -> PWA ok"
 say "systemctl is-enabled bolo-sync: $(systemctl is-enabled bolo-sync)"
+say "ExecStart: $(grep '^ExecStart=' /etc/systemd/system/bolo-sync.service | cut -d= -f2-)"
 cat <<EOF
 
 Done. Next:

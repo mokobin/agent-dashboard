@@ -54,6 +54,8 @@ Aturan: tidak ada heartbeat > 60 dtk → `online:false`, `status:"offline"`, `la
 # di VPS, dari checkout repo
 sudo bash deploy/install.sh
 ```
+Butuh Python ≥ 3.9. `install.sh` mencari `python3.11` dulu (python3 bawaan VPS hanya 3.6.8), lalu 3.12/3.13/3.10/3.9, dan memakai interpreter yang SAMA untuk cek versi, `gen-tokens` dan `ExecStart` unit systemd. Paksa interpreter tertentu: `sudo BOLO_PYTHON=/usr/bin/python3.11 bash deploy/install.sh`.
+
 Yang dilakukan: user `boloku`; kode → `/opt/boloku`; SQLite → `/var/lib/boloku/state.db`;
 token baru → `/etc/boloku/sync.env` (600/640, **ditampilkan sekali**, hanya jika belum ada);
 `bolo-sync.service` enabled + started; **satu** server block nginx baru untuk
