@@ -1,7 +1,11 @@
 .env
+*.env
+!.env.example
+*.token
 server/data/
+*.db
+*.db-wal
+*.db-shm
 __pycache__/
 *.pyc
-node_modules/
-*.log
-.venv/
+.DS_Store

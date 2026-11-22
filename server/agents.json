@@ -1,0 +1,9 @@
+{
+  "agents": [
+    {"agent_id": "bolo_airdrop", "name": "Bolo_airdrop", "platform": "hermes", "role": "Airdrop hunter", "color": "#f59e0b", "desk": 0},
+    {"agent_id": "bolongonten",  "name": "Bolongonten",  "platform": "hermes", "role": "Content producer", "color": "#ec4899", "desk": 1},
+    {"agent_id": "hunter-2",     "name": "Hunter-2",     "alias": "Nanika", "platform": "hermes", "role": "Hunter", "color": "#22d3ee", "desk": 2},
+    {"agent_id": "mas-wowo",     "name": "Mas Wowo",     "platform": "muse", "role": "Operator", "color": "#a78bfa", "desk": 3},
+    {"agent_id": "mas-wiwi",     "name": "Mas Wiwi",     "platform": "muse", "role": "Asisten utama", "color": "#34d399", "desk": 4}
+  ]
+}

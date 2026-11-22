@@ -1,0 +1,18 @@
+# Optional: keep an always-on Hermes agent visible (heartbeat every 30s).
+#   systemctl enable --now bolo-keepalive@hunter-2
+# Runs as the unix user that owns ~/.config/boloku/<agent>.token — set User= below
+# (or `systemctl edit bolo-keepalive@hunter-2` to override per agent).
+[Unit]
+Description=BOLO heartbeat keepalive for %i
+After=network-online.target bolo-sync.service
+
+[Service]
+Type=simple
+User=ubuntu
+Environment=BOLO_API=http://127.0.0.1:8787/api/v1
+ExecStart=/opt/boloku/reporter/keepalive.sh %i
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

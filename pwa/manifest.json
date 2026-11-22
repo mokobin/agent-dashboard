@@ -1,1 +1,20 @@
-{"background_color":"#0b1020","description":"Satu dashboard live untuk semua agent: Hermes + Muse.","display":"standalone","icons":[{"purpose":"any","sizes":"any","src":"icon.svg","type":"image/svg+xml"}],"name":"Pusat Kendali Agent","short_name":"Kendali Agent","start_url":"/","theme_color":"#0b1020"}
+{
+  "name": "BOLO HQ — Pusat Kendali Agent",
+  "short_name": "BOLO HQ",
+  "description": "Kantor virtual isometrik dengan status live agent Hermes & Muse.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#0b1024",
+  "theme_color": "#0b1024",
+  "lang": "id",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
