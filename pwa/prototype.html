@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Pusat Kendali Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    <style>
+      button, [role="button"], select, summary, input:not([type="checkbox"], [type="radio"]) { min-height: 2.25rem; }
+    </style>
+    <style>
+      :root {
+        --bg: #e9edf4;
+        --bg-soft: #f4f6fa;
+        --surface: #ffffff;
+        --surface-2: #eef1f7;
+        --ink: #131a29;
+        --ink-2: #45536b;
+        --ink-3: #7c879c;
+        --line: #d8dee9;
+        --hermes: #0d9488;
+        --hermes-soft: #ccfbf1;
+        --claude: #d97706;
+        --claude-soft: #fef3c7;
+        --go: #16a34a;
+        --wait: #d97706;
+        --danger: #dc2626;
+        --accent: #e8590c;
+        --shadow: 0 10px 30px rgba(19, 26, 41, .08);
+        --radius: 16px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #070c16;
+          --bg-soft: #0b1220;
+          --surface: #101827;
+          --surface-2: #16203376;
+          --ink: #eef2f9;
+          --ink-2: #a7b3c7;
+          --ink-3: #66738a;
+          --line: #22304a;
+          --hermes: #2dd4bf;
+          --hermes-soft: #0f2e2a;
+          --claude: #fbbf24;
+          --claude-soft: #33270e;
+          --go: #4ade80;
+          --wait: #fbbf24;
+          --danger: #f87171;
+          --accent: #fb923c;
+          --shadow: 0 12px 32px rgba(0, 0, 0, .45);
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: "Manrope", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+      button { font-family: inherit; cursor: pointer; }
+      button:focus-visible, input:focus-visible, select:focus-visible {
+        outline: 2px solid var(--accent); outline-offset: 2px;
+      }
+
+      .wrap { max-width: 1440px; margin: 0 auto; padding: 18px clamp(12px, 2.5vw, 28px) 40px; }
+
+      /* ---------- Top bar ---------- */
+      .topbar {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 14px 22px;
+        padding: 14px 18px; background: var(--surface); border: 1px solid var(--line);
+        border-radius: var(--radius); box-shadow: var(--shadow);
+      }
+      .topbar h1 { font-size: clamp(1.15rem, 2.4vw, 1.5rem); margin: 0; font-weight: 800; letter-spacing: -.01em; }
+      .topbar .sub { color: var(--ink-2); font-size: .85rem; margin-top: 2px; }
+      .live-pill {
+        display: inline-flex; align-items: center; gap: 7px; margin-left: 10px;
+        font-family: "JetBrains Mono", monospace; font-size: .68rem; font-weight: 700;
+        letter-spacing: .14em; color: var(--go); vertical-align: middle;
+      }
+      .live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--go); animation: pulseDot 1.6s ease-in-out infinite; }
+      @keyframes pulseDot { 0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,.45);} 55% { box-shadow: 0 0 0 7px rgba(22,163,74,0);} }
+      .stats { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
+      .stat {
+        background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px;
+        padding: 8px 14px; min-width: 104px;
+      }
+      .stat .v { font-family: "JetBrains Mono", monospace; font-size: 1.15rem; font-weight: 700; line-height: 1.1; }
+      .stat .k { font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 2px; }
+      .clockbox { text-align: right; }
+      .clockbox .t { font-family: "JetBrains Mono", monospace; font-size: 1.5rem; font-weight: 700; line-height: 1; }
+      .clockbox .d { font-size: .72rem; color: var(--ink-2); margin-top: 3px; font-weight: 600; }
+
+      /* ---------- Layout ---------- */
+      .layout { display: grid; grid-template-columns: minmax(0, 1fr) 372px; gap: 18px; margin-top: 18px; align-items: start; }
+      @media (max-width: 1080px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+      .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+      .panel-head {
+        display: flex; align-items: center; gap: 10px; padding: 13px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .panel-head h2 { font-size: .92rem; margin: 0; font-weight: 800; letter-spacing: .01em; }
+      .panel-head .tag { margin-left: auto; font-size: .72rem; color: var(--ink-3); font-weight: 600; }
+
+      /* ---------- Office scene ---------- */
+      .scene-wrap { position: relative; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; background: #0a1220; }
+      .scene-wrap svg { display: block; width: 100%; height: auto; }
+      .chip {
+        position: absolute; transform: translate(-50%, -100%);
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(10, 17, 30, .82); color: #eef2f9; border: 1px solid rgba(255,255,255,.16);
+        backdrop-filter: blur(3px);
+        padding: 4px 9px 4px 7px; border-radius: 999px; font-size: .68rem; font-weight: 700;
+        white-space: nowrap; cursor: pointer; transition: transform .18s ease, background .18s ease;
+        min-height: 1.7rem;
+      }
+      .chip:hover { transform: translate(-50%, -100%) scale(1.07); }
+      .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--go); flex: none; }
+      .chip[data-status="jeda"] .dot { background: var(--wait); }
+      .chip .st { font-weight: 600; color: #9fb0c9; font-size: .62rem; }
+      .chip.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .chip.selected .st { color: #ffe3d1; }
+      .bubble {
+        position: absolute; transform: translate(-50%, calc(-100% - 34px));
+        max-width: 250px; width: max-content;
+        background: #ffffff; color: #131a29; border-radius: 12px; padding: 9px 12px;
+        font-size: .76rem; line-height: 1.45; font-weight: 600;
+        box-shadow: 0 12px 28px rgba(0,0,0,.35);
+        transition: left .45s cubic-bezier(.4,0,.2,1), top .45s cubic-bezier(.4,0,.2,1);
+        z-index: 5;
+      }
+      .bubble::after {
+        content: ""; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%);
+        border: 8px solid transparent; border-top-color: #fff; border-bottom: 0;
+      }
+      .bubble .b-name { display: block; font-size: .62rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+      .bubble .tdots { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+      .bubble .tdots i { width: 5px; height: 5px; border-radius: 50%; background: #94a3b8; animation: tblink 1.2s infinite; }
+      .bubble .tdots i:nth-child(2) { animation-delay: .18s; } .bubble .tdots i:nth-child(3) { animation-delay: .36s; }
+      @keyframes tblink { 0%, 60%, 100% { opacity: .25; transform: translateY(0);} 30% { opacity: 1; transform: translateY(-2px);} }
+
+      /* SVG character + screen animation */
+      .char { animation: bob 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+      @keyframes bob { 0%,100% { transform: translateY(0);} 50% { transform: translateY(-3.5px);} }
+      .code-line { animation: codePulse 2.2s ease-in-out infinite; }
+      @keyframes codePulse { 0%,100% { opacity: .35;} 50% { opacity: 1;} }
+      .star { animation: twinkle 3s ease-in-out infinite; }
+      @keyframes twinkle { 0%,100% { opacity: .25;} 50% { opacity: .95;} }
+      .lampglow { animation: flicker 4.5s ease-in-out infinite; }
+      @keyframes flicker { 0%,100% { opacity: .5;} 48% { opacity: .56;} 52% { opacity: .46;} 76% { opacity: .54;} }
+      .scene-agent.paused .char { animation-play-state: paused; }
+      .scene-agent.paused .code-line { animation-play-state: paused; opacity: .18; }
+      .scene-agent .focusring { opacity: 0; transition: opacity .25s ease; }
+      .scene-agent.selected .focusring { opacity: 1; }
+
+      /* ---------- Agent control list ---------- */
+      .group-label {
+        display: flex; align-items: center; gap: 8px; padding: 12px 16px 4px;
+        font-size: .68rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-3);
+      }
+      .group-label .gdot { width: 8px; height: 8px; border-radius: 3px; }
+      .agent-row {
+        display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center;
+        padding: 11px 16px; border-bottom: 1px solid var(--line); cursor: pointer;
+        transition: background .15s ease;
+      }
+      .agent-row:last-child { border-bottom: 0; }
+      .agent-row:hover { background: var(--surface-2); }
+      .agent-row.selected { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+      .avatar {
+        width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+        font-weight: 800; font-size: .8rem; color: #fff; flex: none;
+      }
+      .agent-row .nm { font-weight: 800; font-size: .9rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .plat { font-size: .6rem; font-weight: 800; letter-spacing: .08em; padding: 2px 7px; border-radius: 999px; text-transform: uppercase; }
+      .plat.hermes { background: var(--hermes-soft); color: var(--hermes); }
+      .plat.Muse { background: var(--claude-soft); color: var(--claude); }
+      .agent-row .task { font-size: .76rem; color: var(--ink-2); margin-top: 2px; line-height: 1.4;
+        display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+      .pbar { height: 5px; background: var(--line); border-radius: 99px; margin-top: 7px; overflow: hidden; }
+      .pbar i { display: block; height: 100%; border-radius: 99px; background: var(--go); transition: width .8s ease; }
+      .row-side { text-align: right; }
+      .status-pill { font-size: .64rem; font-weight: 800; letter-spacing: .05em; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; }
+      .status-pill.bekerja { background: rgba(22,163,74,.14); color: var(--go); }
+      .status-pill.jeda { background: rgba(217,119,6,.15); color: var(--wait); }
+      .row-side .sess { font-family: "JetBrains Mono", monospace; font-size: .68rem; color: var(--ink-3); margin-top: 5px; }
+
+      /* Detail card */
+      .detail { padding: 14px 16px 16px; }
+      .detail h3 { margin: 0 0 2px; font-size: 1.02rem; font-weight: 800; }
+      .detail .role { color: var(--ink-2); font-size: .8rem; }
+      .detail .cur {
+        margin-top: 11px; background: var(--surface-2); border: 1px solid var(--line);
+        border-radius: 12px; padding: 10px 12px; font-size: .84rem; line-height: 1.5;
+      }
+      .detail .cur .lbl { font-size: .62rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); display: block; margin-bottom: 3px; }
+      .detail .meta { display: flex; gap: 16px; margin-top: 11px; font-size: .76rem; color: var(--ink-2); flex-wrap: wrap; }
+      .detail .meta b { font-family: "JetBrains Mono", monospace; color: var(--ink); }
+      .btn-row { display: flex; gap: 8px; margin-top: 13px; flex-wrap: wrap; }
+      .btn {
+        border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+        border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: .8rem;
+        transition: background .15s ease, transform .1s ease;
+      }
+      .btn:hover { background: var(--surface-2); }
+      .btn:active { transform: scale(.97); }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      .btn.primary:hover { background: #d14e06; }
+      .btn.small { padding: 6px 11px; font-size: .74rem; }
+
+      /* ---------- Bottom grid ---------- */
+      .bottom { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; margin-top: 18px; align-items: start; }
+      @media (max-width: 1080px) { .bottom { grid-template-columns: minmax(0, 1fr); } }
+
+      .cmd-body { padding: 14px 16px 16px; }
+      .cmd-flex { display: flex; gap: 8px; flex-wrap: wrap; }
+      .cmd-flex select, .cmd-flex input[type="text"] {
+        font-family: inherit; font-size: .86rem; color: var(--ink);
+        background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 11px;
+      }
+      .cmd-flex select { font-weight: 700; }
+      .cmd-flex input[type="text"] { flex: 1 1 220px; }
+      .quick { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+      .quick button {
+        border: 1px dashed var(--line); background: transparent; color: var(--ink-2);
+        border-radius: 999px; padding: 6px 12px; font-size: .74rem; font-weight: 700;
+      }
+      .quick button:hover { color: var(--ink); border-color: var(--ink-3); }
+      .queue { list-style: none; margin: 13px 0 0; padding: 0; }
+      .queue li {
+        display: flex; gap: 9px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line);
+        font-size: .82rem;
+      }
+      .queue .q-agent { font-weight: 800; white-space: nowrap; }
+      .queue .q-state { margin-left: auto; font-size: .66rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+      .queue .q-state.run { color: var(--go); }
+      .queue-empty { color: var(--ink-3); font-size: .82rem; padding-top: 10px; }
+
+      .feed { list-style: none; margin: 0; padding: 8px 0; max-height: 430px; overflow-y: auto; }
+      .feed li {
+        display: grid; grid-template-columns: 52px 10px 1fr; gap: 9px; align-items: baseline;
+        padding: 7px 16px; font-size: .8rem; line-height: 1.5;
+        animation: feedIn .4s ease;
+      }
+      @keyframes feedIn { from { opacity: 0; transform: translateY(-5px);} to { opacity: 1; transform: none;} }
+      .feed .ft { font-family: "JetBrains Mono", monospace; font-size: .68rem; color: var(--ink-3); }
+      .feed .fd { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; }
+      .feed b { font-weight: 800; }
+      .feed .cmd-evt { color: var(--accent); font-weight: 700; }
+
+      footer.note { margin-top: 20px; color: var(--ink-3); font-size: .76rem; text-align: center; }
+
+      @media (max-width: 640px) {
+        .chip { font-size: .56rem; padding: 3px 7px 3px 6px; gap: 4px; }
+        .chip .st { display: none; }
+        .bubble { max-width: 168px; font-size: .68rem; padding: 7px 9px; top: auto !important; bottom: 8px; left: 50% !important; transform: translateX(-50%); }
+        .bubble::after { display: none; }
+        .clockbox { display: none; }
+        .stat { min-width: 88px; padding: 7px 11px; }
+        .feed { max-height: 340px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .char, .code-line, .star, .lampglow, .live-dot, .bubble .tdots i, .feed li { animation: none !important; }
+        .bubble { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+
+      <!-- ======================= TOP BAR ======================= -->
+      <header class="topbar">
+        <div>
+          <h1>Pusat Kendali Agent<span class="live-pill"><span class="live-dot"></span>SIMULASI</span></h1>
+          <div class="sub">Satu akses untuk semua agent Mas Rudy — Hermes &amp; Muse dalam satu ruangan virtual.</div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="v" id="statOnline">5/5</div><div class="k">Agent Aktif</div></div>
+          <div class="stat"><div class="v" id="statRunning">5</div><div class="k">Tugas Berjalan</div></div>
+          <div class="stat"><div class="v" id="statDone">0</div><div class="k">Selesai Sesi Ini</div></div>
+          <div class="clockbox">
+            <div class="t" id="clock">--:--:--</div>
+            <div class="d" id="dateLine">Memuat waktu…</div>
+          </div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <!-- ======================= VIRTUAL OFFICE ======================= -->
+        <section class="panel" aria-label="Kantor virtual">
+          <div class="panel-head">
+            <h2>Kantor Virtual</h2>
+            <span class="tag">Klik agent di ruangan atau di daftar untuk mengendalikan</span>
+          </div>
+          <div class="scene-wrap" id="sceneWrap">
+            <svg viewBox="0 0 1200 660" role="img" aria-label="Ilustrasi kantor virtual malam hari dengan lima agent bekerja di meja masing-masing">
+              <defs>
+                <linearGradient id="wallGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#131f38"/><stop offset="1" stop-color="#1b2a47"/>
+                </linearGradient>
+                <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#0a1830"/><stop offset="1" stop-color="#274a7c"/>
+                </linearGradient>
+                <linearGradient id="floorGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#8a6844"/><stop offset="1" stop-color="#6f5133"/>
+                </linearGradient>
+                <radialGradient id="glowGrad" cx=".5" cy=".5" r=".5">
+                  <stop offset="0" stop-color="#ffd9a0" stop-opacity=".85"/><stop offset="1" stop-color="#ffd9a0" stop-opacity="0"/>
+                </radialGradient>
+                <linearGradient id="screenGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#12303a"/><stop offset="1" stop-color="#0b1e26"/>
+                </linearGradient>
+              </defs>
+
+              <!-- Wall -->
+              <rect x="0" y="0" width="1200" height="412" fill="url(#wallGrad)"/>
+              <!-- Windows -->
+              <g>
+                <rect x="46" y="52" width="270" height="212" rx="10" fill="url(#skyGrad)" stroke="#2c3f61" stroke-width="3"/>
+                <line x1="181" y1="52" x2="181" y2="264" stroke="#2c3f61" stroke-width="4"/>
+                <line x1="46" y1="158" x2="316" y2="158" stroke="#2c3f61" stroke-width="4"/>
+                <circle class="star" cx="90" cy="86" r="2.2" fill="#cfe4ff"/><circle class="star" cx="150" cy="120" r="1.6" fill="#cfe4ff" style="animation-delay:.7s"/>
+                <circle class="star" cx="240" cy="80" r="2" fill="#cfe4ff" style="animation-delay:1.3s"/><circle class="star" cx="285" cy="140" r="1.5" fill="#cfe4ff" style="animation-delay:.4s"/>
+                <circle cx="272" cy="88" r="15" fill="#e8eefc"/><circle cx="266" cy="83" r="13" fill="#0e1e3a"/>
+                <path d="M46 264 v-38 l26-12 v-16 l22 8 v20 l30-14 v52 Z M150 264 v-30 l24-10 v40 Z M214 264 v-44 l28 10 v34 Z" fill="#0a1425" opacity=".85"/>
+                <rect x="66" y="196" width="5" height="5" fill="#ffd9a0"/><rect x="104" y="216" width="5" height="5" fill="#ffd9a0"/><rect x="238" y="206" width="5" height="5" fill="#ffd9a0"/><rect x="168" y="226" width="5" height="5" fill="#ffd9a0"/>
+              </g>
+              <g>
+                <rect x="392" y="52" width="270" height="212" rx="10" fill="url(#skyGrad)" stroke="#2c3f61" stroke-width="3"/>
+                <line x1="527" y1="52" x2="527" y2="264" stroke="#2c3f61" stroke-width="4"/>
+                <line x1="392" y1="158" x2="662" y2="158" stroke="#2c3f61" stroke-width="4"/>
+                <circle class="star" cx="440" cy="96" r="1.8" fill="#cfe4ff" style="animation-delay:.9s"/><circle class="star" cx="590" cy="76" r="2.1" fill="#cfe4ff" style="animation-delay:.2s"/>
+                <circle class="star" cx="622" cy="128" r="1.5" fill="#cfe4ff" style="animation-delay:1.6s"/><circle class="star" cx="486" cy="132" r="1.4" fill="#cfe4ff" style="animation-delay:2.1s"/>
+                <path d="M392 264 v-26 l30-12 v38 Z M470 264 v-48 l26 12 v-14 l24 10 v40 Z M560 264 v-34 l30-8 v42 Z" fill="#0a1425" opacity=".85"/>
+                <rect x="416" y="220" width="5" height="5" fill="#ffd9a0"/><rect x="492" y="200" width="5" height="5" fill="#ffd9a0"/><rect x="600" y="228" width="5" height="5" fill="#ffd9a0"/>
+              </g>
+              <!-- Kanban board -->
+              <g>
+                <rect x="716" y="58" width="212" height="180" rx="8" fill="#22334f" stroke="#31486e" stroke-width="2"/>
+                <rect x="730" y="74" width="56" height="34" rx="3" fill="#f4b8c1"/><rect x="794" y="74" width="56" height="34" rx="3" fill="#a7e8bd"/>
+                <rect x="858" y="74" width="56" height="34" rx="3" fill="#ffe08a"/><rect x="730" y="118" width="56" height="34" rx="3" fill="#a5d8ff"/>
+                <rect x="794" y="118" width="56" height="34" rx="3" fill="#d0bfff"/><rect x="858" y="118" width="56" height="34" rx="3" fill="#ffc9a3"/>
+                <rect x="730" y="162" width="56" height="34" rx="3" fill="#b2f2bb"/><rect x="794" y="162" width="56" height="34" rx="3" fill="#ffd6a5"/>
+                <rect x="858" y="162" width="56" height="34" rx="3" fill="#ffa8a8"/>
+                <text x="822" y="226" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#7f93b5" letter-spacing="2">PIPELINE KERJA</text>
+              </g>
+              <!-- Wall screen / clock -->
+              <g>
+                <rect x="972" y="52" width="178" height="238" rx="10" fill="#0a1322" stroke="#2c3f61" stroke-width="3"/>
+                <text id="wallClock" x="1061" y="152" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="46" fill="#7ee2fc">--:--</text>
+                <text id="wallDate" x="1061" y="182" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#5f7ca6">WIB</text>
+                <rect x="996" y="208" width="130" height="7" rx="3.5" fill="#1d2f4d"/>
+                <rect x="996" y="226" width="96" height="7" rx="3.5" fill="#1d2f4d"/>
+                <rect x="996" y="244" width="112" height="7" rx="3.5" fill="#1d2f4d"/>
+                <circle cx="1003" cy="76" r="4" fill="#4ade80"/>
+              </g>
+              <!-- Wall clock deco -->
+              <g opacity=".9"><circle cx="356" cy="86" r="17" fill="none" stroke="#5f7ca6" stroke-width="3"/><line x1="356" y1="86" x2="356" y2="75" stroke="#5f7ca6" stroke-width="3" stroke-linecap="round"/><line x1="356" y1="86" x2="364" y2="90" stroke="#5f7ca6" stroke-width="3" stroke-linecap="round"/></g>
+
+              <!-- Floor -->
+              <polygon points="0,660 1200,660 1200,412 0,412" fill="url(#floorGrad)"/>
+              <g stroke="#5d422a" stroke-width="2" opacity=".55">
+                <line x1="0" y1="470" x2="1200" y2="470"/><line x1="0" y1="540" x2="1200" y2="540"/><line x1="0" y1="612" x2="1200" y2="612"/>
+                <line x1="200" y1="412" x2="140" y2="660"/><line x1="450" y1="412" x2="430" y2="660"/><line x1="700" y1="412" x2="720" y2="660"/><line x1="950" y1="412" x2="1010" y2="660"/>
+              </g>
+              <ellipse cx="430" cy="580" rx="330" ry="52" fill="#31456b" opacity=".5"/>
+              <ellipse cx="430" cy="580" rx="330" ry="52" fill="none" stroke="#41598a" stroke-width="2" opacity=".6"/>
+
+              <!-- Sofa lounge (left) -->
+              <g>
+                <rect x="36" y="512" width="128" height="52" rx="14" fill="#3d4c63"/>
+                <rect x="28" y="488" width="144" height="42" rx="14" fill="#46566f"/>
+                <rect x="40" y="540" width="46" height="30" rx="8" fill="#37455c"/><rect x="112" y="540" width="46" height="30" rx="8" fill="#37455c"/>
+                <rect x="182" y="540" width="86" height="10" rx="4" fill="#5d422a"/>
+                <rect x="192" y="550" width="8" height="26" fill="#4a3520"/><rect x="250" y="550" width="8" height="26" fill="#4a3520"/>
+                <rect x="200" y="522" width="34" height="20" rx="3" fill="#202c42"/><rect x="204" y="526" width="26" height="12" fill="#3d5a80"/>
+              </g>
+              <!-- Plant -->
+              <g>
+                <path d="M1108 640 l10-26 h44 l10 26 Z" fill="#7a4a2b"/>
+                <path d="M1140 616 c-16-26-34-30-44-28 6 14 20 26 44 28Zm0 0c2-30 14-42 26-46 2 16-6 36-26 46Zm0 0c-4-24-16-34-28-36 2 14 12 30 28 36Z" fill="#3f9e63"/>
+              </g>
+              <g>
+                <path d="M66 420 l7-20 h32 l7 20 Z" fill="#7a4a2b"/>
+                <path d="M89 402 c-12-20-26-23-34-21 5 11 15 20 34 21Zm0 0c2-23 11-32 20-35 1 12-5 27-20 35Z" fill="#3f9e63"/>
+              </g>
+
+              <!-- Meeting room (front right) -->
+              <g>
+                <rect x="806" y="452" width="352" height="196" rx="10" fill="#9fc3e8" opacity=".07"/>
+                <rect x="806" y="452" width="352" height="196" rx="10" fill="none" stroke="#9fc3e8" stroke-width="2" opacity=".35"/>
+                <polygon points="852,586 1112,586 1136,622 828,622" fill="#4a3520"/>
+                <polygon points="852,586 1112,586 1118,600 846,600" fill="#5d422a"/>
+                <g fill="#232f45">
+                  <rect x="862" y="540" width="34" height="42" rx="9"/><rect x="928" y="540" width="34" height="42" rx="9"/><rect x="994" y="540" width="34" height="42" rx="9"/><rect x="1060" y="540" width="34" height="42" rx="9"/>
+                </g>
+                <g fill="#1b2639">
+                  <rect x="876" y="618" width="34" height="40" rx="9"/><rect x="950" y="618" width="34" height="40" rx="9"/><rect x="1024" y="618" width="34" height="40" rx="9"/>
+                </g>
+                <text x="982" y="478" text-anchor="middle" font-family="Manrope, sans-serif" font-weight="700" font-size="13" fill="#9fc3e8" opacity=".8">RUANG MEETING</text>
+              </g>
+
+              <!-- ======== AGENT DESKS (injected groups get ids) ======== -->
+              <!-- Back row -->
+              <g class="scene-agent" id="scene-airdrop" transform="translate(196,392)"></g>
+              <g class="scene-agent" id="scene-ngonten" transform="translate(492,392)"></g>
+              <g class="scene-agent" id="scene-hunter2" transform="translate(782,384) scale(.94)"></g>
+              <!-- Front row -->
+              <g class="scene-agent" id="scene-wowo" transform="translate(292,556)"></g>
+              <g class="scene-agent" id="scene-wiwi" transform="translate(618,556)"></g>
+            </svg>
+
+            <!-- Floating chips + bubble are injected by JS -->
+            <div id="chipLayer"></div>
+            <div class="bubble" id="bubble" style="left:51%;top:55%">
+              <span class="b-name" id="bubbleName">Mas Wiwi</span>
+              <span id="bubbleText">Mengelola dashboard pusat kendali</span><span class="tdots" id="bubbleDots"><i></i><i></i><i></i></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ======================= CONTROL PANEL ======================= -->
+        <aside class="panel" aria-label="Panel kendali agent">
+          <div class="panel-head">
+            <h2>Kendali Agent</h2>
+            <span class="tag" id="ctrlTag">Mode simulasi</span>
+          </div>
+          <div id="agentList"></div>
+          <div class="detail" id="detailCard"></div>
+        </aside>
+      </div>
+
+      <div class="bottom">
+        <!-- ======================= COMMAND CENTER ======================= -->
+        <section class="panel" aria-label="Pusat perintah">
+          <div class="panel-head">
+            <h2>Pusat Perintah</h2>
+            <span class="tag">Perintah diterapkan ke ruangan virtual</span>
+          </div>
+          <div class="cmd-body">
+            <form class="cmd-flex" id="cmdForm">
+              <select id="cmdTarget" aria-label="Pilih agent tujuan"></select>
+              <input type="text" id="cmdText" placeholder="Tulis perintah… mis. Cek semua wallet yang belum klaim" autocomplete="off" />
+              <button type="submit" class="btn primary">Kirim Perintah</button>
+            </form>
+            <div class="quick" id="quickCmds"></div>
+            <ul class="queue" id="queueList"></ul>
+            <div class="queue-empty" id="queueEmpty">Antrean kosong — perintah yang dikirim akan muncul di sini.</div>
+          </div>
+        </section>
+
+        <!-- ======================= LIVE FEED ======================= -->
+        <section class="panel" aria-label="Aktivitas ruangan">
+          <div class="panel-head">
+            <h2>Aktivitas Ruangan</h2>
+            <span class="tag">Simulasi gerak aktivitas tiap agent</span>
+          </div>
+          <ul class="feed" id="feed"></ul>
+        </section>
+      </div>
+
+      <footer class="note">Pusat Kendali Agent — Hermes (Bolo_airdrop · Bolongonten · Hunter-2) &amp; Muse (Mas Wowo · Mas Wiwi) dalam satu ruangan, satu kendali.<br />Status &amp; aktivitas di halaman ini berjalan sebagai simulasi di dalam browser. Agar status asli tiap agent tampil di sini, dashboard ini perlu disambungkan ke Hermes &amp; Muse lewat jembatan server.</footer>
+    </div>
+
+    <script>
+      "use strict";
+      const $ = (s, r) => (r || document).querySelector(s);
+
+      /* ================= DATA ================= */
+      const AGENTS = [
+        { id: "airdrop", name: "Bolo_airdrop", platform: "Hermes", role: "Airdrop Hunter",
+          color: "#0d9488", shirt: "#2a9d8f", skin: "#8d5524", hair: "#14100c", initials: "BA",
+          chip: { left: "16.3%", top: "30.5%" },
+          tasks: ["Memindai eligibility wallet untuk airdrop baru", "Mengecek snapshot & daftar klaim token", "Memantau pengumuman airdrop terbaru", "Verifikasi tugas testnet harian", "Menyusun daftar wallet yang lolos syarat", "Mengecek jadwal vesting & unlock token"] },
+        { id: "ngonten", name: "Bolongonten", platform: "Hermes", role: "Content Creator",
+          color: "#059669", shirt: "#3f7d4e", skin: "#c68642", hair: "#241611", initials: "BK",
+          chip: { left: "41%", top: "30.5%" },
+          tasks: ["Render video Tongki episode baru", "Menulis naskah Shorts Calistung A–Z", "Menjadwalkan antrean upload konten", "Membuat thumbnail & caption video", "Merapikan antrean render manhwa recap", "Mengecek performa video terakhir"] },
+        { id: "hunter2", name: "Hunter-2", platform: "Hermes", role: "Bug Hunter",
+          color: "#2563eb", shirt: "#33546d", skin: "#6b4423", hair: "#0d0d0f", initials: "H2",
+          chip: { left: "65.2%", top: "30%" },
+          tasks: ["Memindai permukaan serangan target", "Menjalankan PoC di sandbox lokal", "Memvalidasi temuan sebelum masuk laporan", "Menyusun paket bukti & hash SHA256", "Review kode sumber target baris demi baris", "Menyusun rantai eksploitasi dari anomali kecil"] },
+        { id: "wowo", name: "Mas Wowo", platform: "Muse", role: "Agent Operasional",
+          color: "#b45309", shirt: "#7d3b3b", skin: "#a0662f", hair: "#191007", initials: "MW",
+          chip: { left: "24.3%", top: "55.5%" },
+          tasks: ["Menyiapkan laporan triase vendor", "Menjalankan hunt yang sedang aktif", "Mengecek antrean QC Dapur", "Memperbarui register temuan", "Menyusun draf follow-up ke vendor", "Merapikan catatan hunt terakhir"] },
+        { id: "wiwi", name: "Mas Wiwi", platform: "Muse", role: "Koordinator — sesi ini",
+          color: "#e8590c", shirt: "#c2571b", skin: "#8d5524", hair: "#120d08", initials: "WW",
+          chip: { left: "51.5%", top: "55.5%" },
+          tasks: ["Mengelola dashboard pusat kendali", "Menjawab pesan & pertanyaan Mas Rudy", "Mengatur jadwal dan pengingat harian", "Sinkronisasi status semua agent", "Menyiapkan ringkasan aktivitas harian", "Menjaga Camoufox & bridge tetap siap pakai"] }
+      ];
+      const AMBIENT = [
+        "membuka terminal baru", "menyimpan progres kerja", "sinkronisasi data terakhir",
+        "memeriksa notifikasi masuk", "memperbarui catatan kerja", "menjalankan pemeriksaan rutin",
+        "memvalidasi hasil langkah terakhir", "mengarsipkan berkas sesi ini"
+      ];
+
+      const state = {};
+      AGENTS.forEach((a, i) => {
+        state[a.id] = {
+          status: "bekerja",
+          task: a.tasks[i % a.tasks.length],
+          taskIdx: i % a.tasks.length,
+          progress: 12 + ((i * 17) % 40),
+          speed: 0.8 + (i % 3) * 0.25,
+          sessionSec: 0,
+          done: 0,
+          queueItem: null,
+          fromCommand: false
+        };
+      });
+      let selectedId = "wiwi";
+      let totalDone = 0;
+      const queue = [];
+
+      /* ================= SVG DESK BUILDER ================= */
+      function deskSVG(a) {
+        const lines = [0, 1, 2, 3].map(i => {
+          const w = [52, 66, 40, 58][i];
+          const c = ["#4ade80", "#7ee2fc", "#fbbf24", "#4ade80"][i];
+          return '<rect class="code-line" x="4" y="' + (6 + i * 11) + '" width="' + w + '" height="5" rx="2.5" fill="' + c + '" style="animation-delay:' + (i * 0.45) + 's"/>';
+        }).join("");
+        return '' +
+        '<ellipse class="focusring" cx="0" cy="30" rx="126" ry="22" fill="none" stroke="' + a.color + '" stroke-width="2.5" stroke-dasharray="7 6"/>' +
+        '<circle class="lampglow" cx="-74" cy="-76" r="46" fill="url(#glowGrad)"/>' +
+        '<line x1="-74" y1="-30" x2="-74" y2="-82" stroke="#39445c" stroke-width="4" stroke-linecap="round"/>' +
+        '<polygon points="-90,-82 -58,-82 -65,-99 -83,-99" fill="#f2c14e"/>' +
+        '<rect x="-36" y="-106" width="72" height="70" rx="15" fill="#26334d"/>' +
+        '<g class="char">' +
+          '<rect x="-25" y="-106" width="50" height="56" rx="15" fill="' + a.shirt + '"/>' +
+          '<line x1="20" y1="-84" x2="44" y2="-52" stroke="' + a.shirt + '" stroke-width="11" stroke-linecap="round"/>' +
+          '<circle cx="0" cy="-126" r="17.5" fill="' + a.skin + '"/>' +
+          '<path d="M-17.5 -128 a17.5 17.5 0 0 1 35 0 l0 -3 a17.5 12 0 0 0 -35 0 Z" fill="' + a.hair + '"/>' +
+        '</g>' +
+        '<polygon points="-106,-34 106,-34 88,-6 -88,-6" fill="#7d5636"/>' +
+        '<polygon points="-88,-6 88,-6 88,17 -88,17" fill="#5d3f24"/>' +
+        '<rect x="-82" y="17" width="9" height="20" fill="#4a3520"/><rect x="73" y="17" width="9" height="20" fill="#4a3520"/>' +
+        '<g transform="translate(58,-40)">' +
+          '<rect x="-8" y="-56" width="92" height="62" rx="7" fill="#10151f" stroke="#33415e" stroke-width="2"/>' +
+          '<rect x="-2" y="-50" width="80" height="50" fill="url(#screenGrad)"/>' + lines +
+          '<rect x="28" y="6" width="9" height="13" fill="#33415e"/><rect x="12" y="19" width="42" height="5" rx="2.5" fill="#33415e"/>' +
+        '</g>' +
+        '<rect x="-46" y="-44" width="13" height="11" rx="2.5" fill="#e2e8f0"/>' +
+        '<rect x="-78" y="-38" width="32" height="4.5" rx="2" fill="#dbe4f0" transform="rotate(-4 -62 -36)"/>' +
+        '<circle cx="-96" cy="-40" r="4" fill="#3f9e63"/><circle cx="-90" cy="-47" r="4.5" fill="#35795a"/><circle cx="-101" cy="-48" r="3.5" fill="#3f9e63"/>';
+      }
+      AGENTS.forEach(a => { $("#scene-" + a.id).innerHTML = deskSVG(a); });
+
+      /* ================= CHIPS ================= */
+      const chipLayer = $("#chipLayer");
+      AGENTS.forEach(a => {
+        const el = document.createElement("button");
+        el.className = "chip"; el.type = "button";
+        el.id = "chip-" + a.id;
+        el.style.left = a.chip.left; el.style.top = a.chip.top;
+        el.setAttribute("data-status", "bekerja");
+        el.innerHTML = '<span class="dot"></span><span>' + a.name + '</span><span class="st">Bekerja</span>';
+        el.addEventListener("click", () => selectAgent(a.id));
+        chipLayer.appendChild(el);
+      });
+
+      /* ================= AGENT LIST ================= */
+      const listEl = $("#agentList");
+      const groups = [["Hermes", "#0d9488"], ["Muse", "#d97706"]];
+      groups.forEach(([gname, gcolor]) => {
+        const gl = document.createElement("div");
+        gl.className = "group-label";
+        gl.innerHTML = '<span class="gdot" style="background:' + gcolor + '"></span>Platform ' + gname;
+        listEl.appendChild(gl);
+        AGENTS.filter(a => a.platform === gname).forEach(a => {
+          const row = document.createElement("div");
+          row.className = "agent-row"; row.id = "row-" + a.id;
+          row.setAttribute("role", "button"); row.setAttribute("tabindex", "0");
+          row.innerHTML =
+            '<div class="avatar" style="background:' + a.color + '">' + a.initials + '</div>' +
+            '<div><div class="nm">' + a.name + '<span class="plat ' + a.platform.toLowerCase() + '">' + a.platform + '</span></div>' +
+            '<div class="task" id="task-' + a.id + '"></div>' +
+            '<div class="pbar"><i id="bar-' + a.id + '"></i></div></div>' +
+            '<div class="row-side"><span class="status-pill bekerja" id="pill-' + a.id + '">Bekerja</span>' +
+            '<div class="sess mono" id="sess-' + a.id + '">00:00</div></div>';
+          row.addEventListener("click", () => selectAgent(a.id));
+          row.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectAgent(a.id); } });
+          listEl.appendChild(row);
+        });
+      });
+
+      /* ================= COMMAND FORM ================= */
+      const cmdTarget = $("#cmdTarget");
+      cmdTarget.innerHTML = '<option value="all">Semua Agent</option>' +
+        AGENTS.map(a => '<option value="' + a.id + '">' + a.name + '</option>').join("");
+      const QUICK = [
+        { label: "Cek status semua agent", target: "all", text: "Laporkan status & progres tugas saat ini" },
+        { label: "Mulai sesi hunting", target: "hunter2", text: "Mulai sesi hunting: pilih target baru dan petakan permukaannya" },
+        { label: "Render konten berikutnya", target: "ngonten", text: "Render video berikutnya dari antrean konten" },
+        { label: "Sapu klaim airdrop", target: "airdrop", text: "Sapu semua wallet: klaim airdrop yang sudah terbuka" },
+        { label: "Siapkan ringkasan harian", target: "wiwi", text: "Siapkan ringkasan aktivitas semua agent hari ini" }
+      ];
+      const quickEl = $("#quickCmds");
+      QUICK.forEach(q => {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = q.label;
+        b.addEventListener("click", () => dispatchCommand(q.target, q.text));
+        quickEl.appendChild(b);
+      });
+      $("#cmdForm").addEventListener("submit", e => {
+        e.preventDefault();
+        const text = $("#cmdText").value.trim();
+        if (!text) { $("#cmdText").focus(); return; }
+        dispatchCommand(cmdTarget.value, text);
+        $("#cmdText").value = "";
+      });
+
+      /* ================= FEED ================= */
+      const feedEl = $("#feed");
+      function nowWIB() {
+        return new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date()).replace(/\./g, ":");
+      }
+      function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+      function pushFeed(agent, html, isCmd) {
+        const li = document.createElement("li");
+        const dotColor = agent ? agent.color : "#94a3b8";
+        li.innerHTML = '<span class="ft">' + nowWIB() + '</span><span class="fd" style="background:' + dotColor + '"></span>' +
+          '<span>' + (agent ? '<b>' + agent.name + '</b> — ' : '') + '<span class="' + (isCmd ? "cmd-evt" : "") + '">' + html + '</span></span>';
+        feedEl.prepend(li);
+        while (feedEl.children.length > 30) feedEl.removeChild(feedEl.lastChild);
+      }
+
+      /* ================= QUEUE ================= */
+      function renderQueue() {
+        const ql = $("#queueList");
+        ql.innerHTML = "";
+        $("#queueEmpty").style.display = queue.length ? "none" : "block";
+        queue.slice(-6).reverse().forEach(item => {
+          const li = document.createElement("li");
+          li.innerHTML = '<span class="q-agent" style="color:' + item.agent.color + '">' + item.agent.name + '</span>' +
+            '<span>' + esc(item.text) + '</span>' +
+            '<span class="q-state ' + (item.state === "berjalan" ? "run" : "") + '">' + item.state + '</span>';
+          ql.appendChild(li);
+        });
+      }
+
+      /* ================= DETAIL + SELECTION ================= */
+      function fmtTime(sec) {
+        const m = String(Math.floor(sec / 60)).padStart(2, "0");
+        const s = String(sec % 60).padStart(2, "0");
+        return m + ":" + s;
+      }
+      function selectAgent(id) {
+        selectedId = id;
+        AGENTS.forEach(a => {
+          $("#chip-" + a.id).classList.toggle("selected", a.id === id);
+          $("#row-" + a.id).classList.toggle("selected", a.id === id);
+          $("#scene-" + a.id).classList.toggle("selected", a.id === id);
+        });
+        renderDetail();
+        updateBubble();
+      }
+      function renderDetail() {
+        const a = AGENTS.find(x => x.id === selectedId);
+        const st = state[a.id];
+        $("#detailCard").innerHTML =
+          '<h3>' + a.name + '</h3>' +
+          '<div class="role">' + a.role + ' · Platform ' + a.platform + '</div>' +
+          '<div class="cur"><span class="lbl">Tugas saat ini</span><span id="detailTask">' + esc(st.task) + '</span></div>' +
+          '<div class="meta"><span>Progres <b id="detailProg">' + Math.floor(st.progress) + '%</b></span>' +
+          '<span>Sesi <b id="detailSess">' + fmtTime(st.sessionSec) + '</b></span>' +
+          '<span>Selesai <b id="detailDone">' + st.done + ' tugas</b></span></div>' +
+          '<div class="btn-row">' +
+            '<button class="btn" id="btnPause">' + (st.status === "jeda" ? "Lanjutkan" : "Jeda") + '</button>' +
+            '<button class="btn" id="btnDone">Selesaikan Tugas</button>' +
+            '<button class="btn primary" id="btnCmd">Beri Perintah</button>' +
+          '</div>';
+        $("#btnPause").addEventListener("click", () => togglePause(a.id));
+        $("#btnDone").addEventListener("click", () => completeTask(a, false));
+        $("#btnCmd").addEventListener("click", () => {
+          cmdTarget.value = a.id;
+          $("#cmdText").focus();
+          $("#cmdText").scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+      function updateBubble() {
+        const a = AGENTS.find(x => x.id === selectedId);
+        const st = state[a.id];
+        const b = $("#bubble");
+        const leftPct = parseFloat(a.chip.left);
+        b.style.left = Math.min(84, Math.max(15, leftPct)) + "%";
+        b.style.top = a.chip.top;
+        $("#bubbleName").textContent = a.name + (st.status === "jeda" ? " · Jeda" : "");
+        $("#bubbleName").style.color = a.color;
+        $("#bubbleText").textContent = st.status === "jeda" ? "Sedang jeda — menunggu perintah berikutnya" : st.task;
+        $("#bubbleDots").style.display = st.status === "jeda" ? "none" : "inline-flex";
+      }
+
+      /* ================= ACTIONS ================= */
+      function togglePause(id) {
+        const a = AGENTS.find(x => x.id === id);
+        const st = state[id];
+        st.status = st.status === "jeda" ? "bekerja" : "jeda";
+        $("#scene-" + id).classList.toggle("paused", st.status === "jeda");
+        pushFeed(a, st.status === "jeda" ? "dijeda dari pusat kendali" : "melanjutkan tugasnya", false);
+        syncAgentUI(id);
+        if (id === selectedId) { renderDetail(); updateBubble(); }
+        updateStats();
+      }
+      function completeTask(a, auto) {
+        const st = state[a.id];
+        if (st.queueItem) { st.queueItem.state = "selesai"; st.queueItem = null; renderQueue(); }
+        pushFeed(a, (st.fromCommand ? "menyelesaikan perintah: " : "menyelesaikan tugas: ") + esc(st.task), st.fromCommand);
+        st.done++; totalDone++;
+        st.fromCommand = false;
+        st.taskIdx = (st.taskIdx + 1) % a.tasks.length;
+        st.task = a.tasks[st.taskIdx];
+        st.progress = 0;
+        syncAgentUI(a.id);
+        if (a.id === selectedId) { renderDetail(); updateBubble(); }
+        updateStats();
+      }
+      function dispatchCommand(target, text) {
+        const targets = target === "all" ? AGENTS : AGENTS.filter(a => a.id === target);
+        targets.forEach(a => {
+          const st = state[a.id];
+          if (st.queueItem) { st.queueItem.state = "selesai"; }
+          const item = { agent: a, text: text, state: "berjalan" };
+          queue.push(item);
+          st.queueItem = item;
+          st.task = text; st.fromCommand = true; st.progress = 2;
+          if (st.status === "jeda") { st.status = "bekerja"; $("#scene-" + a.id).classList.remove("paused"); }
+          syncAgentUI(a.id);
+        });
+        renderQueue();
+        pushFeed(null, "Perintah dari Mas Rudy → " + (target === "all" ? "Semua Agent" : targets[0].name) + ": “" + esc(text) + "”", true);
+        selectAgent(targets[0].id);
+        updateStats();
+      }
+
+      /* ================= UI SYNC ================= */
+      function syncAgentUI(id) {
+        const st = state[id];
+        $("#task-" + id).textContent = st.status === "jeda" ? "Sedang jeda" : st.task;
+        $("#bar-" + id).style.width = st.progress + "%";
+        $("#bar-" + id).style.background = st.status === "jeda" ? "var(--wait)" : "var(--go)";
+        const pill = $("#pill-" + id);
+        pill.textContent = st.status === "jeda" ? "Jeda" : "Bekerja";
+        pill.className = "status-pill " + st.status;
+        const chip = $("#chip-" + id);
+        chip.setAttribute("data-status", st.status);
+        chip.querySelector(".st").textContent = st.status === "jeda" ? "Jeda" : "Bekerja";
+        if (id === selectedId) {
+          const dp = $("#detailProg"); if (dp) dp.textContent = Math.floor(st.progress) + "%";
+          const dt = $("#detailTask"); if (dt) dt.textContent = st.task;
+          const dd = $("#detailDone"); if (dd) dd.textContent = st.done + " tugas";
+        }
+      }
+      function updateStats() {
+        const active = AGENTS.filter(a => state[a.id].status === "bekerja").length;
+        $("#statOnline").textContent = active + "/5";
+        $("#statRunning").textContent = active;
+        $("#statDone").textContent = totalDone;
+        $("#ctrlTag").textContent = active + " agent aktif · " + (5 - active) + " jeda";
+      }
+
+      /* ================= CLOCK ================= */
+      function tickClock() {
+        const now = new Date();
+        const t = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(now).replace(/\./g, ":");
+        $("#clock").textContent = t + " WIB";
+        $("#dateLine").textContent = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(now);
+        const wc = $("#wallClock");
+        if (wc) wc.textContent = t.slice(0, 5);
+        const wd = $("#wallDate");
+        if (wd) wd.textContent = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", weekday: "short", day: "numeric", month: "short" }).format(now).toUpperCase() + " · WIB";
+      }
+
+      /* ================= ENGINE ================= */
+      function tick() {
+        tickClock();
+        AGENTS.forEach(a => {
+          const st = state[a.id];
+          if (st.status !== "bekerja") return;
+          st.sessionSec++;
+          st.progress += (Math.random() * 2.1 + 0.7) * st.speed;
+          if (st.progress >= 100) { completeTask(a, true); }
+          else {
+            $("#bar-" + a.id).style.width = st.progress + "%";
+            $("#sess-" + a.id).textContent = fmtTime(st.sessionSec);
+            if (a.id === selectedId) {
+              const dp = $("#detailProg"); if (dp) dp.textContent = Math.floor(st.progress) + "%";
+              const ds = $("#detailSess"); if (ds) ds.textContent = fmtTime(st.sessionSec);
+            }
+          }
+        });
+      }
+      function ambient() {
+        const working = AGENTS.filter(a => state[a.id].status === "bekerja");
+        if (!working.length) return;
+        const a = working[Math.floor(Math.random() * working.length)];
+        pushFeed(a, AMBIENT[Math.floor(Math.random() * AMBIENT.length)], false);
+      }
+
+      /* ================= INIT ================= */
+      AGENTS.forEach(a => syncAgentUI(a.id));
+      selectAgent("wiwi");
+      updateStats();
+      renderQueue();
+      tickClock();
+      pushFeed(null, "Dashboard dibuka — 5 agent tampil dalam satu ruangan (mode simulasi)", false);
+      pushFeed(AGENTS[4], "mengambil alih koordinasi sesi ini", false);
+      pushFeed(AGENTS[2], "memulai pemindaian target yang sedang aktif", false);
+      setInterval(tick, 1000);
+      setInterval(ambient, 7000);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b1020">
+<title>Pusat Kendali Agent</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0b1020; color: #e8ecf4; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #26304a; }
+  h1 { font-size: 20px; margin: 0; }
+  .badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .badge.live { background: #14532d; color: #86efac; }
+  .badge.sim { background: #713f12; color: #fde68a; }
+  #clock { font-variant-numeric: tabular-nums; color: #9fb0cc; }
+  main { padding: 20px; display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .card { background: #141b30; border: 1px solid #26304a; border-radius: 12px; padding: 16px; }
+  .card h2 { margin: 0 0 4px; font-size: 17px; }
+  .platform { font-size: 11px; letter-spacing: 1px; color: #9fb0cc; text-transform: uppercase; }
+  .status { display: inline-block; margin: 8px 0; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .status.working { background: #14532d; color: #86efac; }
+  .status.idle { background: #334155; color: #cbd5e1; }
+  .status.offline { background: #7f1d1d; color: #fca5a5; }
+  .task { margin: 6px 0 0; font-size: 14px; line-height: 1.45; }
+  .seen { margin: 10px 0 0; font-size: 12px; color: #9fb0cc; }
+  footer { padding: 14px 20px; font-size: 12px; color: #9fb0cc; border-top: 1px solid #26304a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pusat Kendali Agent</h1>
+  <span id="clock">--:--:-- WIB</span>
+  <span id="mode" class="badge sim">SIMULASI</span>
+</header>
+<main id="grid"></main>
+<footer>
+  Shell live — data dari <code>/api/v1/status</code>. Selama API belum tersambung, yang tampil
+  adalah simulasi (dilabeli). Tampilan kantor virtual isometrik: lihat
+  <a href="prototype.html" style="color:#93c5fd">prototype.html</a> — Claude Code memindahkannya ke halaman ini.
+</footer>
+<script>
+const AGENTS = [
+  { id: "bolo_airdrop", platform: "hermes" },
+  { id: "bolongonten", platform: "hermes" },
+  { id: "hunter-2", platform: "hermes" },
+  { id: "mas-wowo", platform: "muse" },
+  { id: "mas-wiwi", platform: "muse" },
+];
+const DEMO = { status: "idle", task: "(menunggu data live dari Sync API)", last_seen: null, online: false };
+
+function tick() {
+  document.getElementById("clock").textContent =
+    new Date().toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour12: false }) + " WIB";
+}
+setInterval(tick, 1000); tick();
+
+function render(snapshot, live) {
+  const mode = document.getElementById("mode");
+  mode.textContent = live ? "LIVE" : "SIMULASI";
+  mode.className = "badge " + (live ? "live" : "sim");
+  const byId = {};
+  if (snapshot) snapshot.agents.forEach(a => byId[a.agent_id] = a);
+  document.getElementById("grid").innerHTML = AGENTS.map(a => {
+    const r = byId[a.id] || { ...DEMO, agent_id: a.id, platform: a.platform };
+    const seen = r.last_seen
+      ? "terakhir terlihat " + new Date(r.last_seen).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour12: false })
+      : "belum pernah melapor";
+    return `<div class="card"><h2>${a.id}</h2><div class="platform">${a.platform}</div>` +
+      `<span class="status ${r.status}">${r.status}${r.online === false && r.status !== "offline" ? " (stale)" : ""}</span>` +
+      `<p class="task">${r.task || "—"}</p><p class="seen">${seen}</p></div>`;
+  }).join("");
+}
+
+async function poll() {
+  try {
+    const res = await fetch("/api/v1/status", { cache: "no-store" });
+    if (!res.ok) throw new Error("http " + res.status);
+    render(await res.json(), true);
+  } catch (e) {
+    render(null, false);
+  }
+}
+poll();
+setInterval(poll, 5000);
+try {
+  const es = new EventSource("/api/v1/events");
+  es.onmessage = ev => { try { render(JSON.parse(ev.data), true); } catch (e) {} };
+} catch (e) {}
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
